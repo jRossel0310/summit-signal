@@ -25,8 +25,11 @@ def set_interval_hours(hours: float):
     if existing:
         existing.remove()
     if hours and hours > 0:
-        scheduler.add_job(jobs.run_all_saved_trips, "interval", hours=hours, id=JOB_ID,
-                          name=f"Re-check all saved trips every {hours:g} h")
+        scheduler.add_job(
+            jobs.run_all_saved_trips, "interval", hours=hours, id=JOB_ID,
+            name=f"Re-check all saved trips every {hours:g} h",
+            max_instances=1, coalesce=True, misfire_grace_time=300,
+        )
 
 
 def list_jobs() -> list[dict]:

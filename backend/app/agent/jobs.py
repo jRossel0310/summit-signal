@@ -38,6 +38,11 @@ CONNECTOR_PIPELINE = [
     ("weather_discussion", weather_discussion),
 ]
 
+# Cap concurrent condition-check workers so a "run all" or short schedule can't
+# spawn unbounded threads all hammering SQLite at once.
+MAX_CONCURRENT_CHECKS = 3
+_worker_semaphore = threading.BoundedSemaphore(MAX_CONCURRENT_CHECKS)
+
 
 def start_condition_check(trip_id: int) -> int:
     """Create the check row and kick off a worker thread. Returns check id."""
@@ -58,10 +63,24 @@ def start_condition_check(trip_id: int) -> int:
 
 
 def _run_check(check_id: int):
+    with _worker_semaphore:
+        _run_check_inner(check_id)
+
+
+def _run_check_inner(check_id: int):
     db = SessionLocal()
     try:
         check = db.get(models.ConditionCheck, check_id)
+        if check is None:
+            return  # check row is gone (deleted/race) — nothing to do
         trip = db.get(models.Trip, check.trip_id)
+        if trip is None:
+            check.status = "failed"
+            check.completed_at = dt.datetime.now(dt.timezone.utc)
+            check.overall_concern_status = "Source check failed"
+            check.summary_text = "Trip was deleted before the condition check could run."
+            db.commit()
+            return
         settings = get_settings(db)
         enabled = settings.get("connectors_enabled", {})
         api_keys = {name: get_api_key(db, name) for name in ("firms", "airnow", "nps")}
