@@ -10,9 +10,11 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 from app import models  # noqa: E402
 from app.services import report_generator  # noqa: E402
+from tests.conftest import signup_and_token  # noqa: E402
 
 _cm = TestClient(app)
 client = _cm.__enter__()
+_T, _U, AUTH = signup_and_token(client, "report@example.com")
 
 
 def teardown_module(_m):
@@ -20,7 +22,7 @@ def teardown_module(_m):
 
 
 def test_report_survives_partial_weather_and_bands():
-    trip = models.Trip(name="Partial", latitude=46.0, longitude=-121.0,
+    trip = models.Trip(user_id=1, name="Partial", latitude=46.0, longitude=-121.0,
                        start_date="2026-07-01", end_date="2026-07-03")
     check = models.ConditionCheck(trip_id=1, status="complete",
                                   overall_concern_status="No major concerns found",
@@ -40,7 +42,7 @@ def test_report_survives_partial_weather_and_bands():
 
 
 def test_report_zero_elevation_not_shown_as_question_mark():
-    trip = models.Trip(name="Sea", latitude=36.0, longitude=-121.9,
+    trip = models.Trip(user_id=1, name="Sea", latitude=36.0, longitude=-121.9,
                        start_date="2026-07-01", end_date="2026-07-03")
     trip.gpx_route = models.GpxRoute(filename="coast.gpx", length_miles=5.0,
                                      min_elevation_ft=0, max_elevation_ft=120)
@@ -49,6 +51,6 @@ def test_report_zero_elevation_not_shown_as_question_mark():
 
 
 def test_print_report_bad_check_id_returns_404():
-    trips = client.get("/trips").json()
-    r = client.get(f"/trips/{trips[0]['id']}/print-report?check_id=999999")
+    trips = client.get("/trips", headers=AUTH).json()
+    r = client.get(f"/trips/{trips[0]['id']}/print-report?check_id=999999", headers=AUTH)
     assert r.status_code == 404

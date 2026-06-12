@@ -1,9 +1,13 @@
 """Deleting a trip must remove every descendant row (no orphans)."""
 from app import models
+from app.security import hash_password
 
 
 def _make_full_trip(session):
-    trip = models.Trip(name="T", latitude=46.0, longitude=-121.0,
+    user = models.User(email="persist@x.com", password_hash=hash_password("password123"))
+    session.add(user)
+    session.flush()
+    trip = models.Trip(user_id=user.id, name="T", latitude=46.0, longitude=-121.0,
                        start_date="2026-07-01", end_date="2026-07-03")
     session.add(trip)
     session.flush()
