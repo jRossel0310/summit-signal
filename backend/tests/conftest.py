@@ -1,12 +1,32 @@
 """Shared pytest fixtures. The `session` fixture gives each test an isolated
 in-memory SQLite session with all tables created — no app, no seeding, no
 network. Use it for model/cascade and service-layer tests."""
+import os
+import tempfile
+
+# Bind the shared app engine to a throwaway DB for the whole test session.
+# conftest is imported before any test module, so this guarantees no test
+# (including ones that import the real engine/app) ever touches summit_signal.db.
+os.environ.setdefault("SUMMIT_SIGNAL_DB", os.path.join(tempfile.mkdtemp(), "summit_test.db"))
+
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app import models  # noqa: F401  (import registers the ORM mappers on Base)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _create_app_schema():
+    """Create the schema on the shared app engine's throwaway DB once per
+    session, so tests that use the real engine/SessionLocal directly (e.g.
+    test_concurrency) work even when run in isolation, not just after another
+    test happens to have spun up the app and created the tables first."""
+    from app.database import engine
+
+    Base.metadata.create_all(bind=engine)
+    yield
 
 
 @pytest.fixture
