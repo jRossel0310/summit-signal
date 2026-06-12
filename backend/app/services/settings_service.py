@@ -1,5 +1,6 @@
-"""Settings access. Settings live in the app_settings table as JSON-ish strings;
-API keys live in api_keys. Environment variables override stored keys:
+"""Settings access. Settings live in the app_settings table as JSON-ish strings,
+scoped per user via a composite (user_id, key) primary key. API keys are not
+stored in the database; they come from environment variables only:
 SUMMIT_SIGNAL_FIRMS_KEY, SUMMIT_SIGNAL_AIRNOW_KEY, SUMMIT_SIGNAL_NPS_KEY.
 """
 import json
@@ -30,9 +31,10 @@ ENV_KEY_MAP = {
 }
 
 
-def get_settings(db: Session) -> dict:
+def get_settings(db: Session, user_id: int) -> dict:
     out = json.loads(json.dumps(DEFAULT_SETTINGS))  # deep copy
-    for row in db.query(models.AppSetting).all():
+    rows = db.query(models.AppSetting).filter(models.AppSetting.user_id == user_id).all()
+    for row in rows:
         if row.key in out:
             try:
                 out[row.key] = json.loads(row.value)
@@ -41,22 +43,21 @@ def get_settings(db: Session) -> dict:
     return out
 
 
-def update_settings(db: Session, updates: dict) -> dict:
+def update_settings(db: Session, user_id: int, updates: dict) -> dict:
     for key, value in updates.items():
         if key not in DEFAULT_SETTINGS or value is None:
             continue
         if key == "connectors_enabled":
-            current = get_settings(db)["connectors_enabled"]
+            current = get_settings(db, user_id)["connectors_enabled"]
             current.update(value)
             value = current
-        row = db.get(models.AppSetting, key)
+        row = db.get(models.AppSetting, {"user_id": user_id, "key": key})
         if row is None:
-            row = models.AppSetting(key=key, value=json.dumps(value))
-            db.add(row)
+            db.add(models.AppSetting(user_id=user_id, key=key, value=json.dumps(value)))
         else:
             row.value = json.dumps(value)
     db.commit()
-    return get_settings(db)
+    return get_settings(db, user_id)
 
 
 def get_api_key(db, name: str) -> str:

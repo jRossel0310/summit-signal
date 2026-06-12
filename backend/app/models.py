@@ -22,6 +22,8 @@ class User(Base):
 class Trip(Base):
     __tablename__ = "trips"
     id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),
+                     nullable=False, index=True)
     name = Column(String, nullable=False)
     location_name = Column(String, default="")
     latitude = Column(Float, nullable=False)
@@ -149,6 +151,7 @@ class SavedReport(Base):
 
 class AppSetting(Base):
     __tablename__ = "app_settings"
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     key = Column(String, primary_key=True)
     value = Column(Text, default="")
 
