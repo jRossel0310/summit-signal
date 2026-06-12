@@ -38,11 +38,19 @@ def test_search_location_returns_results_envelope():
     assert "kind" in item
 
 
+def _create_trip(name="Contract trip"):
+    r = client.post("/trips", json={
+        "name": name, "latitude": 46.8, "longitude": -121.7,
+        "start_date": "2026-07-01", "end_date": "2026-07-03", "trip_type": "general"})
+    assert r.status_code == 200
+    return r.json()["id"]
+
+
 def test_get_check_ai_summary_is_object():
+    trip_id = _create_trip("Summary trip")
     db = SessionLocal()
     try:
-        trip = db.query(models.Trip).first()
-        check = models.ConditionCheck(trip_id=trip.id, status="complete",
+        check = models.ConditionCheck(trip_id=trip_id, status="complete",
                                       summary_text="# Summary\n- point one")
         db.add(check)
         db.commit()
@@ -61,10 +69,10 @@ def test_get_check_ai_summary_is_object():
 
 
 def test_get_check_ai_summary_null_when_absent():
+    trip_id = _create_trip("Null summary trip")
     db = SessionLocal()
     try:
-        trip = db.query(models.Trip).first()
-        check = models.ConditionCheck(trip_id=trip.id, status="complete", summary_text=None)
+        check = models.ConditionCheck(trip_id=trip_id, status="complete", summary_text=None)
         db.add(check)
         db.commit()
         cid = check.id
@@ -77,8 +85,8 @@ def test_get_check_ai_summary_null_when_absent():
 def test_run_condition_check_returns_check_with_id(monkeypatch):
     # Don't actually run the (networked) connector pipeline in a test.
     monkeypatch.setattr(jobs, "_run_check", lambda check_id: None)
-    trips = client.get("/trips").json()
-    r = client.post(f"/trips/{trips[0]['id']}/run-condition-check")
+    trip_id = _create_trip("Run check trip")
+    r = client.post(f"/trips/{trip_id}/run-condition-check")
     assert r.status_code == 200
     body = r.json()
     # Frontend does `beginPolling(c.id, ...)` with the returned object.

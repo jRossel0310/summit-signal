@@ -9,13 +9,13 @@ from .. import models
 from ..database import get_db
 from ..schemas import (
     SettingsOut, SettingsUpdate, LocationSearchRequest, LocationSearchResult,
-    LocationSearchResponse, ScheduleRequest,
+    LocationSearchResponse,
 )
 from ..services.settings_service import (
     get_settings, update_settings, set_api_key, api_keys_present,
 )
 from ..connectors.base import http_client
-from ..agent import jobs, scheduler, ollama_client
+from ..agent import jobs, ollama_client
 
 router = APIRouter()
 
@@ -40,8 +40,6 @@ def write_settings(body: SettingsUpdate, db: Session = Depends(get_db)):
             if name in ("firms", "airnow", "nps"):
                 set_api_key(db, name, value or "")
     s = update_settings(db, data)
-    if "schedule_hours" in data and data["schedule_hours"] is not None:
-        scheduler.set_interval_hours(float(data["schedule_hours"]))
     s["api_keys_present"] = api_keys_present(db)
     return SettingsOut(**s)
 
@@ -105,13 +103,4 @@ def run_all():
     return {"started_condition_checks": check_ids}
 
 
-@router.post("/agent/schedule")
-def set_schedule(body: ScheduleRequest, db: Session = Depends(get_db)):
-    update_settings(db, {"schedule_hours": body.hours})
-    scheduler.set_interval_hours(body.hours)
-    return {"schedule_hours": body.hours, "jobs": scheduler.list_jobs()}
 
-
-@router.get("/agent/jobs")
-def get_jobs():
-    return {"jobs": scheduler.list_jobs()}

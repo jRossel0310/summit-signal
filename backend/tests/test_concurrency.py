@@ -1,9 +1,9 @@
-"""Reliability fixes: SQLite PRAGMAs, bounded scheduler job, and _run_check
-guards so a deleted trip never leaves a check stuck 'running'."""
+"""Reliability fixes: SQLite PRAGMAs and _run_check guards so a deleted trip
+never leaves a check stuck 'running'."""
 from sqlalchemy import text
 
 from app.database import engine
-from app.agent import jobs, scheduler
+from app.agent import jobs
 from app import models
 from app.database import SessionLocal
 
@@ -14,17 +14,6 @@ def test_sqlite_pragmas_applied():
         fk = conn.exec_driver_sql("PRAGMA foreign_keys").scalar()
     assert int(busy) >= 30000
     assert int(fk) == 1
-
-
-def test_scheduled_job_is_bounded():
-    scheduler.set_interval_hours(1)
-    try:
-        job = scheduler.scheduler.get_job(scheduler.JOB_ID)
-        assert job is not None
-        assert job.max_instances == 1
-        assert job.coalesce is True
-    finally:
-        scheduler.set_interval_hours(0)  # remove the job again
 
 
 def test_run_check_marks_failed_when_trip_missing():
