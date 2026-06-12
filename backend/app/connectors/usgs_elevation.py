@@ -14,14 +14,14 @@ EPQS_URL = "https://epqs.nationalmap.gov/v1/json"
 
 
 def run(ctx: ConnectorContext) -> ConnectorOutput:
+    source_name = SOURCE
+    source_url = EPQS_URL
     params = {"x": ctx.longitude, "y": ctx.latitude, "units": "Meters", "wkid": 4326,
               "includeDate": "false"}
     try:
         with http_client() as client:
             meters = None
             raw = None
-            source_url = EPQS_URL
-            source_name = SOURCE
             try:
                 r = client.get(EPQS_URL, params=params)
                 r.raise_for_status()
@@ -32,9 +32,12 @@ def run(ctx: ConnectorContext) -> ConnectorOutput:
                 meters = None
 
             if meters is None:
-                # Fallback source, clearly labeled
+                # Fallback source, clearly labeled. Set the attribution BEFORE the
+                # call so a fallback FAILURE is also attributed to Open-Meteo.
+                source_name = "Open-Meteo elevation (fallback; USGS EPQS unavailable)"
+                source_url = "https://api.open-meteo.com/v1/elevation"
                 fb = client.get(
-                    "https://api.open-meteo.com/v1/elevation",
+                    source_url,
                     params={"latitude": ctx.latitude, "longitude": ctx.longitude},
                 )
                 fb.raise_for_status()
@@ -42,11 +45,9 @@ def run(ctx: ConnectorContext) -> ConnectorOutput:
                 elevs = raw.get("elevation") or []
                 if elevs:
                     meters = float(elevs[0])
-                    source_name = "Open-Meteo elevation (fallback; USGS EPQS unavailable)"
-                    source_url = "https://api.open-meteo.com/v1/elevation"
 
             if meters is None:
-                return failed(NAME, SOURCE, EPQS_URL, "No elevation value returned")
+                return failed(NAME, source_name, source_url, "No elevation value returned")
 
             feet = meters * 3.28084
             ctx.elevation_ft = feet  # share with elevation-adjusted module
@@ -60,4 +61,4 @@ def run(ctx: ConnectorContext) -> ConnectorOutput:
                 normalized={"elevation_m": round(meters, 1), "elevation_ft": round(feet, 0)},
             )
     except Exception as e:  # noqa: BLE001
-        return failed(NAME, SOURCE, EPQS_URL, str(e))
+        return failed(NAME, source_name, source_url, str(e))

@@ -28,8 +28,8 @@ def run(ctx: ConnectorContext) -> ConnectorOutput:
 
     # Sensible defaults from GPX route elevations when bands are not set
     gpx = ctx.shared.get("gpx_meta") or {}
-    if not any(bands.get(k) for k in ("trailhead_ft", "mid_ft", "high_ft")):
-        if gpx.get("min_elevation_ft") and gpx.get("max_elevation_ft"):
+    if not any(bands.get(k) is not None for k in ("trailhead_ft", "mid_ft", "high_ft")):
+        if gpx.get("min_elevation_ft") is not None and gpx.get("max_elevation_ft") is not None:
             bands = {
                 "trailhead_ft": gpx["min_elevation_ft"],
                 "mid_ft": (gpx["min_elevation_ft"] + gpx["max_elevation_ft"]) / 2,
@@ -40,7 +40,7 @@ def run(ctx: ConnectorContext) -> ConnectorOutput:
     for label, key in (("Trailhead", "trailhead_ft"), ("Mid-route", "mid_ft"),
                        ("High point / summit", "high_ft")):
         target = bands.get(key)
-        if not target:
+        if target is None:
             continue
         delta_ft = float(target) - base_ft
         delta_f = -(delta_ft / 1000.0) * LAPSE_F_PER_1000FT
@@ -59,7 +59,7 @@ def run(ctx: ConnectorContext) -> ConnectorOutput:
 
     freezing_band_note = None
     high = bands.get("high_ft")
-    if high and nws.get("low_f") is not None:
+    if high is not None and nws.get("low_f") is not None:
         est_low_at_high = nws["low_f"] - ((float(high) - base_ft) / 1000.0) * LAPSE_F_PER_1000FT
         freezing_band_note = {
             "estimated_overnight_low_at_high_point_f": round(est_low_at_high),
