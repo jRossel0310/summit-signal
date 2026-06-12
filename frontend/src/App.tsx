@@ -89,7 +89,10 @@ export default function App() {
   const gpxPoints = useMemo(() => selectedTrip?.gpx_route?.points || null, [selectedTrip]);
 
   // ---- load latest check when trip selected ----
-  const loadLatestCheck = useCallback(async (trip: Trip) => {
+  async function loadLatestCheck(trip: Trip) {
+    stopPolling();
+    setRunning(false);
+    setLiveStatus(null);
     setCheck(null);
     setDashError(null);
     setLoadingCheck(true);
@@ -106,7 +109,7 @@ export default function App() {
     } finally {
       setLoadingCheck(false);
     }
-  }, []);
+  }
 
   function selectTrip(trip: Trip) {
     setSelectedTrip(trip);
@@ -117,31 +120,36 @@ export default function App() {
   }
 
   // ---- run condition check + polling ----
-  function beginPolling(checkId: number, trip: Trip) {
+  function stopPolling() {
+    if (pollRef.current) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
+
+  function beginPolling(checkId: number, _trip: Trip) {
     setRunning(true);
     setLiveStatus(null);
-    if (pollRef.current) window.clearInterval(pollRef.current);
+    stopPolling();
     pollRef.current = window.setInterval(async () => {
       try {
         const st = await api.getCheckStatus(checkId);
         setLiveStatus(st);
         if (st.status !== "running") {
-          if (pollRef.current) window.clearInterval(pollRef.current);
-          pollRef.current = null;
+          stopPolling();
           setRunning(false);
           setCheck(await api.getCheck(checkId));
           refreshTrips();
           if (st.status === "failed") setDashError("Condition check failed. See connector results for details.");
         }
       } catch (e) {
-        if (pollRef.current) window.clearInterval(pollRef.current);
-        pollRef.current = null;
+        stopPolling();
         setRunning(false);
         setDashError((e as Error).message);
       }
     }, 1200);
   }
-  useEffect(() => () => { if (pollRef.current) window.clearInterval(pollRef.current); }, []);
+  useEffect(() => () => stopPolling(), []);
 
   async function runCheck() {
     if (!selectedTrip) return;
@@ -238,10 +246,16 @@ export default function App() {
             onTripUpdated={(t) => {
               setDetailTrip(t);
               setTrips((prev) => prev.map((x) => (x.id === t.id ? t : x)));
+              setSelectedTrip((prev) => (prev && prev.id === t.id ? t : prev));
             }}
             onTripDeleted={(id) => {
               setTrips((prev) => prev.filter((x) => x.id !== id));
-              if (selectedTrip?.id === id) { setSelectedTrip(null); setCheck(null); }
+              if (selectedTrip?.id === id) {
+                setSelectedTrip(null);
+                setCheck(null);
+                setSelectedPoint(null);
+                setPointName(null);
+              }
               setView("dashboard");
             }}
           />

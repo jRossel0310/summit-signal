@@ -43,9 +43,9 @@ export default function SearchBar({ onResult }: Props) {
       {error && <div className="error-note" style={{ marginTop: 6 }}>{error}</div>}
       {results.length > 0 && (
         <div className="search-results" style={{ marginTop: 6 }}>
-          {results.map((r, i) => (
+          {results.map((r) => (
             <div
-              key={i}
+              key={`${r.latitude},${r.longitude},${r.display_name}`}
               className="res"
               onClick={() => { onResult(r); setResults([]); setQuery(""); }}
             >

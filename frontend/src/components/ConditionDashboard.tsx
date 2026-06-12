@@ -46,7 +46,7 @@ function ConnectorCard({ r, staleHours }: { r: ConnectorResult; staleHours: numb
         return n.elevation_ft != null ? (
           <div className="kv">
             <span className="k">Elevation</span>
-            <span className="v">{Math.round(n.elevation_ft).toLocaleString()} ft ({Math.round(n.elevation_m)} m){n.fallback_source ? ` · via ${n.fallback_source}` : ""}</span>
+            <span className="v">{Math.round(n.elevation_ft).toLocaleString()} ft{n.elevation_m != null ? ` (${Math.round(n.elevation_m)} m)` : ""}{n.fallback_source ? ` · via ${n.fallback_source}` : ""}</span>
           </div>
         ) : null;
       case "elevation_adjusted": {
