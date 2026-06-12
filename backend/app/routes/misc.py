@@ -15,7 +15,7 @@ from ..services.settings_service import (
     get_settings, update_settings, set_api_key, api_keys_present,
 )
 from ..connectors.base import http_client
-from ..agent import jobs, ollama_client
+from ..agent import jobs
 
 router = APIRouter()
 
@@ -42,14 +42,6 @@ def write_settings(body: SettingsUpdate, db: Session = Depends(get_db)):
     s = update_settings(db, data)
     s["api_keys_present"] = api_keys_present(db)
     return SettingsOut(**s)
-
-
-@router.get("/settings/ollama-models")
-def ollama_models(db: Session = Depends(get_db)):
-    s = get_settings(db)
-    url = s.get("ollama_url", "http://localhost:11434")
-    available = ollama_client.is_available(url)
-    return {"available": available, "models": ollama_client.list_models(url) if available else []}
 
 
 # ---------------- location search ----------------
