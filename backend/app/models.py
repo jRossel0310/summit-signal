@@ -33,6 +33,9 @@ class Trip(Base):
     condition_checks = relationship(
         "ConditionCheck", back_populates="trip", cascade="all, delete-orphan"
     )
+    saved_reports = relationship(
+        "SavedReport", cascade="all, delete-orphan"
+    )
 
 
 class Location(Base):
@@ -62,7 +65,7 @@ class GpxRoute(Base):
 class ConditionCheck(Base):
     __tablename__ = "condition_checks"
     id = Column(Integer, primary_key=True)
-    trip_id = Column(Integer, ForeignKey("trips.id"), nullable=False)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), nullable=False)
     started_at = Column(DateTime, default=utcnow)
     completed_at = Column(DateTime, nullable=True)
     status = Column(String, default="running")  # running | complete | failed
@@ -77,12 +80,15 @@ class ConditionCheck(Base):
     risk_flags = relationship(
         "RiskFlag", back_populates="condition_check", cascade="all, delete-orphan"
     )
+    ai_summaries = relationship(
+        "AiSummary", back_populates="condition_check", cascade="all, delete-orphan"
+    )
 
 
 class ConnectorResult(Base):
     __tablename__ = "connector_results"
     id = Column(Integer, primary_key=True)
-    condition_check_id = Column(Integer, ForeignKey("condition_checks.id"), nullable=False)
+    condition_check_id = Column(Integer, ForeignKey("condition_checks.id", ondelete="CASCADE"), nullable=False)
     connector_name = Column(String, nullable=False)
     status = Column(String, default="skipped")  # success | partial | failed | skipped
     source_name = Column(String, default="")
@@ -99,7 +105,7 @@ class ConnectorResult(Base):
 class RiskFlag(Base):
     __tablename__ = "risk_flags"
     id = Column(Integer, primary_key=True)
-    condition_check_id = Column(Integer, ForeignKey("condition_checks.id"), nullable=False)
+    condition_check_id = Column(Integer, ForeignKey("condition_checks.id", ondelete="CASCADE"), nullable=False)
     severity = Column(String, default="info")   # info | moderate | major | unknown
     category = Column(String, default="weather")
     # weather | fire | smoke | official_alert | avalanche | snow | access | data_gap
@@ -115,17 +121,20 @@ class RiskFlag(Base):
 class AiSummary(Base):
     __tablename__ = "ai_summaries"
     id = Column(Integer, primary_key=True)
-    condition_check_id = Column(Integer, ForeignKey("condition_checks.id"), nullable=False)
+    condition_check_id = Column(Integer, ForeignKey("condition_checks.id", ondelete="CASCADE"), nullable=False)
     generator = Column(String, default="rule_based")  # rule_based | ollama:<model>
     summary_markdown = Column(Text, default="")
     created_at = Column(DateTime, default=utcnow)
+
+    condition_check = relationship("ConditionCheck", back_populates="ai_summaries")
 
 
 class SavedReport(Base):
     __tablename__ = "saved_reports"
     id = Column(Integer, primary_key=True)
-    trip_id = Column(Integer, ForeignKey("trips.id"), nullable=False)
-    condition_check_id = Column(Integer, nullable=True)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), nullable=False)
+    condition_check_id = Column(
+        Integer, ForeignKey("condition_checks.id", ondelete="CASCADE"), nullable=True)
     html = Column(Text, default="")
     created_at = Column(DateTime, default=utcnow)
 

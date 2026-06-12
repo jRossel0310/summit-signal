@@ -93,8 +93,7 @@ def delete_trip(trip_id: int, db: Session = Depends(get_db)):
     trip = db.get(models.Trip, trip_id)
     if not trip:
         raise HTTPException(404, "Trip not found")
-    db.query(models.ConditionCheck).filter_by(trip_id=trip_id).delete()
-    db.delete(trip)
+    db.delete(trip)  # ORM cascade removes checks, connector results, flags, summaries, reports
     db.commit()
     return {"deleted": trip_id}
 
