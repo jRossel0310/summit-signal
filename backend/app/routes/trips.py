@@ -10,9 +10,17 @@ from .. import models
 from ..database import get_db
 from ..schemas import TripCreate, TripUpdate, TripOut, GpxRouteOut, ConditionCheckOut
 from ..services import gpx_parser, report_generator
+from ..security import get_current_user
 from ..agent import jobs
 
 router = APIRouter()
+
+
+def _owned_trip(trip_id: int, user: models.User, db: Session) -> models.Trip:
+    trip = db.get(models.Trip, trip_id)
+    if trip is None or trip.user_id != user.id:
+        raise HTTPException(404, "Trip not found")
+    return trip
 
 
 def _trip_out(trip: models.Trip) -> TripOut:
@@ -40,8 +48,10 @@ def _trip_out(trip: models.Trip) -> TripOut:
 
 
 @router.post("/trips", response_model=TripOut)
-def create_trip(body: TripCreate, db: Session = Depends(get_db)):
+def create_trip(body: TripCreate, db: Session = Depends(get_db),
+                user: models.User = Depends(get_current_user)):
     trip = models.Trip(
+        user_id=user.id,
         name=body.name, location_name=body.location_name,
         latitude=body.latitude, longitude=body.longitude,
         start_date=body.start_date, end_date=body.end_date,
@@ -59,24 +69,22 @@ def create_trip(body: TripCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/trips", response_model=list[TripOut])
-def list_trips(db: Session = Depends(get_db)):
-    trips = db.query(models.Trip).order_by(models.Trip.created_at.desc()).all()
+def list_trips(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    trips = (db.query(models.Trip).filter(models.Trip.user_id == user.id)
+             .order_by(models.Trip.created_at.desc()).all())
     return [_trip_out(t) for t in trips]
 
 
 @router.get("/trips/{trip_id}", response_model=TripOut)
-def get_trip(trip_id: int, db: Session = Depends(get_db)):
-    trip = db.get(models.Trip, trip_id)
-    if not trip:
-        raise HTTPException(404, "Trip not found")
-    return _trip_out(trip)
+def get_trip(trip_id: int, db: Session = Depends(get_db),
+             user: models.User = Depends(get_current_user)):
+    return _trip_out(_owned_trip(trip_id, user, db))
 
 
 @router.patch("/trips/{trip_id}", response_model=TripOut)
-def update_trip(trip_id: int, body: TripUpdate, db: Session = Depends(get_db)):
-    trip = db.get(models.Trip, trip_id)
-    if not trip:
-        raise HTTPException(404, "Trip not found")
+def update_trip(trip_id: int, body: TripUpdate, db: Session = Depends(get_db),
+                user: models.User = Depends(get_current_user)):
+    trip = _owned_trip(trip_id, user, db)
     data = body.model_dump(exclude_unset=True)
     if "elevation_bands" in data and data["elevation_bands"] is not None:
         data["elevation_bands"] = json.dumps(data["elevation_bands"])
@@ -88,20 +96,18 @@ def update_trip(trip_id: int, body: TripUpdate, db: Session = Depends(get_db)):
 
 
 @router.delete("/trips/{trip_id}")
-def delete_trip(trip_id: int, db: Session = Depends(get_db)):
-    trip = db.get(models.Trip, trip_id)
-    if not trip:
-        raise HTTPException(404, "Trip not found")
+def delete_trip(trip_id: int, db: Session = Depends(get_db),
+                user: models.User = Depends(get_current_user)):
+    trip = _owned_trip(trip_id, user, db)
     db.delete(trip)  # ORM cascade removes checks, connector results, flags, summaries, reports
     db.commit()
     return {"deleted": trip_id}
 
 
 @router.post("/trips/{trip_id}/upload-gpx", response_model=TripOut)
-async def upload_gpx(trip_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    trip = db.get(models.Trip, trip_id)
-    if not trip:
-        raise HTTPException(404, "Trip not found")
+async def upload_gpx(trip_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+                     user: models.User = Depends(get_current_user)):
+    trip = _owned_trip(trip_id, user, db)
     content = await file.read()
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(413, "GPX file larger than 10 MB")
@@ -126,9 +132,9 @@ async def upload_gpx(trip_id: int, file: UploadFile = File(...), db: Session = D
 
 
 @router.post("/trips/{trip_id}/run-condition-check", response_model=ConditionCheckOut)
-def run_condition_check(trip_id: int, db: Session = Depends(get_db)):
-    if not db.get(models.Trip, trip_id):
-        raise HTTPException(404, "Trip not found")
+def run_condition_check(trip_id: int, db: Session = Depends(get_db),
+                        user: models.User = Depends(get_current_user)):
+    _owned_trip(trip_id, user, db)
     check_id = jobs.start_condition_check(trip_id)
     check = db.get(models.ConditionCheck, check_id)
     return ConditionCheckOut(
@@ -141,7 +147,9 @@ def run_condition_check(trip_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/trips/{trip_id}/checks")
-def list_trip_checks(trip_id: int, db: Session = Depends(get_db)):
+def list_trip_checks(trip_id: int, db: Session = Depends(get_db),
+                     user: models.User = Depends(get_current_user)):
+    _owned_trip(trip_id, user, db)
     checks = (db.query(models.ConditionCheck).filter_by(trip_id=trip_id)
               .order_by(models.ConditionCheck.started_at.desc()).all())
     return [{"id": c.id, "started_at": c.started_at, "completed_at": c.completed_at,
@@ -150,13 +158,12 @@ def list_trip_checks(trip_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/trips/{trip_id}/print-report", response_class=HTMLResponse)
-def print_report(trip_id: int, check_id: int | None = None, db: Session = Depends(get_db)):
-    trip = db.get(models.Trip, trip_id)
-    if not trip:
-        raise HTTPException(404, "Trip not found")
+def print_report(trip_id: int, check_id: int | None = None, db: Session = Depends(get_db),
+                 user: models.User = Depends(get_current_user)):
+    trip = _owned_trip(trip_id, user, db)
     if check_id:
         check = db.get(models.ConditionCheck, check_id)
-        if check is None:
+        if check is None or check.trip_id != trip.id:
             raise HTTPException(404, "Condition check not found")
     else:
         check = (db.query(models.ConditionCheck)

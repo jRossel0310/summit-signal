@@ -81,7 +81,7 @@ def _run_check_inner(check_id: int):
             check.summary_text = "Trip was deleted before the condition check could run."
             db.commit()
             return
-        settings = get_settings(db)
+        settings = get_settings(db, trip.user_id)
         enabled = settings.get("connectors_enabled", {})
         api_keys = {name: get_api_key(db, name) for name in ("firms", "airnow", "nps")}
 
@@ -169,10 +169,11 @@ def _run_check_inner(check_id: int):
         db.close()
 
 
-def run_all_saved_trips() -> list[int]:
+def run_all_saved_trips(user_id: int) -> list[int]:
     db = SessionLocal()
     try:
-        trip_ids = [t.id for t in db.query(models.Trip).all()]
+        trip_ids = [t.id for t in db.query(models.Trip)
+                    .filter(models.Trip.user_id == user_id).all()]
     finally:
         db.close()
     return [start_condition_check(tid) for tid in trip_ids]
