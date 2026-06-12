@@ -150,6 +150,8 @@ def print_report(trip_id: int, check_id: int | None = None, db: Session = Depend
         raise HTTPException(404, "Trip not found")
     if check_id:
         check = db.get(models.ConditionCheck, check_id)
+        if check is None:
+            raise HTTPException(404, "Condition check not found")
     else:
         check = (db.query(models.ConditionCheck)
                  .filter_by(trip_id=trip_id, status="complete")

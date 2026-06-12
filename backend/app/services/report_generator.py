@@ -64,9 +64,11 @@ def generate_report_html(trip: models.Trip, check: models.ConditionCheck | None)
     route_line = ""
     gpx = trip.gpx_route
     if gpx:
+        length = gpx.length_miles if gpx.length_miles is not None else "?"
+        lo = gpx.min_elevation_ft if gpx.min_elevation_ft is not None else "?"
+        hi = gpx.max_elevation_ft if gpx.max_elevation_ft is not None else "?"
         route_line = (f"<tr><th>Route (GPX)</th><td>{_e(gpx.filename)} — "
-                      f"~{gpx.length_miles or '?'} mi, "
-                      f"{gpx.min_elevation_ft or '?'}–{gpx.max_elevation_ft or '?'} ft</td></tr>")
+                      f"~{length} mi, {lo}–{hi} ft</td></tr>")
     parts.append(
         "<table>"
         f"<tr><th>Name</th><td>{_e(trip.name)}</td></tr>"
@@ -113,9 +115,12 @@ def generate_report_html(trip: models.Trip, check: models.ConditionCheck | None)
     if wx.get("periods"):
         parts.append("<table><tr><th>Period</th><th>Temp</th><th>Wind</th><th>Precip</th><th>Forecast</th></tr>")
         for p in wx["periods"][:14]:
-            parts.append(f"<tr><td>{_e(p['name'])}</td><td>{_e(p['temperature_f'])}F</td>"
-                         f"<td>{_e(p['wind_speed'])}</td><td>{_e(p['precip_chance'])}%</td>"
-                         f"<td>{_e(p['short_forecast'])}</td></tr>")
+            parts.append(
+                f"<tr><td>{_e(p.get('name', ''))}</td>"
+                f"<td>{_e(p.get('temperature_f', '?'))}F</td>"
+                f"<td>{_e(p.get('wind_speed', '—'))}</td>"
+                f"<td>{_e(p.get('precip_chance', '—'))}%</td>"
+                f"<td>{_e(p.get('short_forecast', ''))}</td></tr>")
         parts.append("</table>")
     else:
         parts.append("<p>No forecast data retrieved.</p>")
@@ -130,8 +135,10 @@ def generate_report_html(trip: models.Trip, check: models.ConditionCheck | None)
     if adj.get("bands"):
         parts.append("<ul>")
         for b in adj["bands"]:
-            parts.append(f"<li>{_e(b['label'])} ({b['elevation_ft']} ft): about "
-                         f"{b['temp_offset_f']:+.0f}F vs. the forecast point (estimate).</li>")
+            off = b.get("temp_offset_f")
+            off_str = "?" if off is None else f"{off:+.0f}"
+            parts.append(f"<li>{_e(b.get('label', ''))} ({b.get('elevation_ft', '?')} ft): about "
+                         f"{off_str}F vs. the forecast point (estimate).</li>")
         parts.append("</ul>")
         parts.append(f"<p class='src'>{_e(adj.get('warning',''))}</p>")
 
