@@ -70,11 +70,13 @@ def evaluate(outputs: list[ConnectorOutput], settings: dict, trip_type: str,
                 f"({o.source_timestamp}). Re-check closer to your trip.",
                 o.connector_name, o.source_url, "medium"))
 
-    # Completeness: success=1, partial=0.5 over enabled connectors that ran
-    ran = [o for o in outputs]
+    # Completeness: score connectors the user left ENABLED. success=1, partial=0.5,
+    # everything else (failed, skipped-for-missing-key) = 0. Connectors the user
+    # disabled are excluded entirely so turning one off can't fake "Data incomplete".
+    considered = [o for o in outputs if enabled.get(o.connector_name, True)]
     score_points = sum(1.0 if o.status == "success" else 0.5 if o.status == "partial" else 0.0
-                       for o in ran)
-    completeness = round(score_points / len(ran), 2) if ran else 0.0
+                       for o in considered)
+    completeness = round(score_points / len(considered), 2) if considered else 0.0
 
     overall = _overall_status(flags, outputs, completeness)
     return flags, overall, completeness
