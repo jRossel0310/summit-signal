@@ -12,7 +12,7 @@ from ..schemas import (
     LocationSearchResponse,
 )
 from ..services.settings_service import (
-    get_settings, update_settings, set_api_key, api_keys_present,
+    get_settings, update_settings, api_keys_present,
 )
 from ..connectors.base import http_client
 from ..agent import jobs
@@ -34,11 +34,7 @@ def read_settings(db: Session = Depends(get_db)):
 @router.post("/settings", response_model=SettingsOut)
 def write_settings(body: SettingsUpdate, db: Session = Depends(get_db)):
     data = body.model_dump(exclude_unset=True)
-    keys = data.pop("api_keys", None)
-    if keys:
-        for name, value in keys.items():
-            if name in ("firms", "airnow", "nps"):
-                set_api_key(db, name, value or "")
+    data.pop("api_keys", None)  # API keys are env-only now
     s = update_settings(db, data)
     s["api_keys_present"] = api_keys_present(db)
     return SettingsOut(**s)

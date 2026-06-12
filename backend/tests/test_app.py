@@ -66,12 +66,9 @@ def test_gpx_parse_and_upload():
 
 
 def test_settings_roundtrip():
-    r = client.post("/settings", json={"fire_radius_miles": 45,
-                                       "api_keys": {"airnow": "test-key"}})
+    r = client.post("/settings", json={"fire_radius_miles": 45})
     assert r.status_code == 200
-    body = r.json()
-    assert body["fire_radius_miles"] == 45
-    assert body["api_keys_present"]["airnow"] is True
+    assert r.json()["fire_radius_miles"] == 45
 
 
 def _fake_outputs():

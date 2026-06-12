@@ -17,20 +17,10 @@ DEFAULT_SETTINGS = {
     "cold_low_f": 10.0,
     "stale_hours": 24.0,
     "connectors_enabled": {
-        "nws_weather": True,
-        "usgs_elevation": True,
-        "elevation_adjusted": True,
-        "nasa_firms": True,
-        "nifc_wfigs": True,
-        "airnow": True,
-        "nps_alerts": True,
-        "avalanche": True,
-        "weather_discussion": True,
+        "nws_weather": True, "usgs_elevation": True, "elevation_adjusted": True,
+        "nasa_firms": True, "nifc_wfigs": True, "airnow": True,
+        "nps_alerts": True, "avalanche": True, "weather_discussion": True,
     },
-    "ollama_enabled": False,
-    "ollama_url": "http://localhost:11434",
-    "ollama_model": "",
-    "schedule_hours": 0.0,
 }
 
 ENV_KEY_MAP = {
@@ -69,21 +59,10 @@ def update_settings(db: Session, updates: dict) -> dict:
     return get_settings(db)
 
 
-def set_api_key(db: Session, name: str, value: str):
-    row = db.get(models.ApiKey, name)
-    if row is None:
-        db.add(models.ApiKey(name=name, value=value))
-    else:
-        row.value = value
-    db.commit()
-
-
-def get_api_key(db: Session, name: str) -> str:
+def get_api_key(db, name: str) -> str:
+    """API keys come from environment variables only (operator-provided)."""
     env_var = ENV_KEY_MAP.get(name)
-    if env_var and os.environ.get(env_var):
-        return os.environ[env_var]
-    row = db.get(models.ApiKey, name)
-    return (row.value or "").strip() if row else ""
+    return os.environ.get(env_var, "").strip() if env_var else ""
 
 
 def api_keys_present(db: Session) -> dict:
