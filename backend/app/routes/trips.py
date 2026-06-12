@@ -81,8 +81,7 @@ def update_trip(trip_id: int, body: TripUpdate, db: Session = Depends(get_db)):
     if "elevation_bands" in data and data["elevation_bands"] is not None:
         data["elevation_bands"] = json.dumps(data["elevation_bands"])
     for k, v in data.items():
-        if v is not None:
-            setattr(trip, k, v)
+        setattr(trip, k, v)  # exclude_unset already filtered to provided fields
     db.commit()
     db.refresh(trip)
     return _trip_out(trip)

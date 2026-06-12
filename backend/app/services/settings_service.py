@@ -47,7 +47,7 @@ def get_settings(db: Session) -> dict:
             try:
                 out[row.key] = json.loads(row.value)
             except (json.JSONDecodeError, TypeError):
-                out[row.key] = row.value
+                continue  # unparseable — keep the typed default rather than a raw string
     return out
 
 
