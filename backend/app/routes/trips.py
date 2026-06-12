@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..database import get_db
-from ..schemas import TripCreate, TripUpdate, TripOut, GpxRouteOut
+from ..schemas import TripCreate, TripUpdate, TripOut, GpxRouteOut, ConditionCheckOut
 from ..services import gpx_parser, report_generator
 from ..agent import jobs
 
@@ -125,12 +125,19 @@ async def upload_gpx(trip_id: int, file: UploadFile = File(...), db: Session = D
     return _trip_out(trip)
 
 
-@router.post("/trips/{trip_id}/run-condition-check")
+@router.post("/trips/{trip_id}/run-condition-check", response_model=ConditionCheckOut)
 def run_condition_check(trip_id: int, db: Session = Depends(get_db)):
     if not db.get(models.Trip, trip_id):
         raise HTTPException(404, "Trip not found")
     check_id = jobs.start_condition_check(trip_id)
-    return {"condition_check_id": check_id, "status": "running"}
+    check = db.get(models.ConditionCheck, check_id)
+    return ConditionCheckOut(
+        id=check.id, trip_id=check.trip_id, started_at=check.started_at,
+        completed_at=check.completed_at, status=check.status,
+        overall_concern_status=check.overall_concern_status,
+        data_completeness_score=check.data_completeness_score,
+        summary_text=None,
+    )
 
 
 @router.get("/trips/{trip_id}/checks")

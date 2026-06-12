@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..database import get_db
-from ..schemas import ConditionCheckOut, ConditionCheckDetail, ConnectorResultOut, RiskFlagOut
+from ..schemas import (
+    ConditionCheckOut, ConditionCheckDetail, ConnectorResultOut, RiskFlagOut, AiSummaryOut,
+)
 from ..services.settings_service import get_settings
 from ..services import risk_engine
 from ..agent import summarizer
@@ -29,6 +31,10 @@ def _detail(check: models.ConditionCheck) -> ConditionCheckDetail:
                          description=f.description, source_connector=f.source_connector,
                          source_url=f.source_url, confidence=f.confidence)
              for f in check.risk_flags]
+    summary = None
+    if check.summary_text:
+        # Fallback when no AiSummary row exists; get_check overrides with the row.
+        summary = AiSummaryOut(summary_text=check.summary_text, generator="rule_based")
     return ConditionCheckDetail(
         id=check.id, trip_id=check.trip_id, started_at=check.started_at,
         completed_at=check.completed_at, status=check.status,
@@ -36,7 +42,7 @@ def _detail(check: models.ConditionCheck) -> ConditionCheckDetail:
         data_completeness_score=check.data_completeness_score,
         summary_text=check.summary_text,
         connector_results=results, risk_flags=flags,
-        ai_summary=check.summary_text, ai_generator=None,
+        ai_summary=summary,
     )
 
 
@@ -49,8 +55,10 @@ def get_check(check_id: int, db: Session = Depends(get_db)):
     latest = (db.query(models.AiSummary).filter_by(condition_check_id=check_id)
               .order_by(models.AiSummary.created_at.desc()).first())
     if latest:
-        detail.ai_summary = latest.summary_markdown
-        detail.ai_generator = latest.generator
+        detail.ai_summary = AiSummaryOut(
+            summary_text=latest.summary_markdown, generator=latest.generator,
+            created_at=latest.created_at,
+        )
     return detail
 
 

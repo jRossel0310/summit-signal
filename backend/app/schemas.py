@@ -124,11 +124,16 @@ class ConditionCheckOut(BaseModel):
     summary_text: Optional[str]
 
 
+class AiSummaryOut(BaseModel):
+    summary_text: str
+    generator: str
+    created_at: Optional[dt.datetime] = None
+
+
 class ConditionCheckDetail(ConditionCheckOut):
     connector_results: list[ConnectorResultOut] = Field(default_factory=list)
     risk_flags: list[RiskFlagOut] = Field(default_factory=list)
-    ai_summary: Optional[str] = None
-    ai_generator: Optional[str] = None
+    ai_summary: Optional[AiSummaryOut] = None
 
 
 # ---------- Search ----------
@@ -138,11 +143,15 @@ class LocationSearchRequest(BaseModel):
 
 
 class LocationSearchResult(BaseModel):
-    name: str
+    display_name: str
     latitude: float
     longitude: float
     kind: str = ""
     source: str = ""
+
+
+class LocationSearchResponse(BaseModel):
+    results: list[LocationSearchResult] = Field(default_factory=list)
 
 
 # ---------- Settings ----------

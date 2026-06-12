@@ -9,7 +9,7 @@ from .. import models
 from ..database import get_db
 from ..schemas import (
     SettingsOut, SettingsUpdate, LocationSearchRequest, LocationSearchResult,
-    ScheduleRequest,
+    LocationSearchResponse, ScheduleRequest,
 )
 from ..services.settings_service import (
     get_settings, update_settings, set_api_key, api_keys_present,
@@ -56,7 +56,7 @@ def ollama_models(db: Session = Depends(get_db)):
 
 # ---------------- location search ----------------
 
-@router.post("/search/location", response_model=list[LocationSearchResult])
+@router.post("/search/location", response_model=LocationSearchResponse)
 def search_location(body: LocationSearchRequest, db: Session = Depends(get_db)):
     q = body.query.strip()
     if not q:
@@ -65,9 +65,10 @@ def search_location(body: LocationSearchRequest, db: Session = Depends(get_db)):
     if m:
         lat, lon = float(m.group(1)), float(m.group(2))
         if -90 <= lat <= 90 and -180 <= lon <= 180:
-            return [LocationSearchResult(name=f"Coordinate {lat:.4f}, {lon:.4f}",
-                                         latitude=lat, longitude=lon,
-                                         kind="coordinate", source="manual")]
+            return LocationSearchResponse(results=[
+                LocationSearchResult(display_name=f"Coordinate {lat:.4f}, {lon:.4f}",
+                                     latitude=lat, longitude=lon,
+                                     kind="coordinate", source="manual")])
     try:
         with http_client() as client:
             r = client.get(
@@ -83,17 +84,17 @@ def search_location(body: LocationSearchRequest, db: Session = Depends(get_db)):
     for row in rows:
         try:
             results.append(LocationSearchResult(
-                name=row.get("display_name", q),
+                display_name=row.get("display_name", q),
                 latitude=float(row["lat"]), longitude=float(row["lon"]),
                 kind=row.get("type", ""), source="nominatim",
             ))
         except (KeyError, ValueError):
             continue
     for res in results[:1]:
-        db.add(models.Location(name=res.name, latitude=res.latitude,
+        db.add(models.Location(name=res.display_name, latitude=res.latitude,
                                longitude=res.longitude, kind=res.kind, source=res.source))
     db.commit()
-    return results
+    return LocationSearchResponse(results=results)
 
 
 # ---------------- agent ----------------
