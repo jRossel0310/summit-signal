@@ -27,6 +27,29 @@ class ConnectorOutput(BaseModel):
     error_message: Optional[str] = None
 
 
+# ---------- Auth ----------
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    invite_code: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+
+
+class TokenResponse(BaseModel):
+    token: str
+    user: UserOut
+
+
 # ---------- Trips ----------
 
 class ElevationBands(BaseModel):

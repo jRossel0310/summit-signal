@@ -11,6 +11,14 @@ def utcnow():
     return dt.datetime.now(dt.timezone.utc)
 
 
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    password_hash = Column(String, nullable=False)
+    created_at = Column(DateTime, default=utcnow)
+
+
 class Trip(Base):
     __tablename__ = "trips"
     id = Column(Integer, primary_key=True)
@@ -145,8 +153,3 @@ class AppSetting(Base):
     value = Column(Text, default="")
 
 
-class ApiKey(Base):
-    __tablename__ = "api_keys"
-    name = Column(String, primary_key=True)  # firms, airnow, nps
-    value = Column(Text, default="")
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
