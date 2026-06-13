@@ -82,7 +82,7 @@ export default function TripDetail({ trip, onBack, onTripUpdated, onTripDeleted 
           <span>{TRIP_TYPE_LABELS[trip.trip_type]}</span>
           {trip.gpx_route && (
             <span>
-              GPX: {trip.gpx_route.length_miles != null ? `${trip.gpx_route.length_miles.toFixed(1)} mi` : "—"}
+              GPX: {trip.gpx_route.length_miles != null ? `${trip.gpx_route.length_miles.toFixed(1)} mi` : "-"}
               {trip.gpx_route.min_elevation_ft != null && trip.gpx_route.max_elevation_ft != null &&
                 `, ${Math.round(trip.gpx_route.min_elevation_ft).toLocaleString()}–${Math.round(trip.gpx_route.max_elevation_ft).toLocaleString()} ft`}
             </span>

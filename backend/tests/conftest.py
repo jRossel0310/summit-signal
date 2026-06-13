@@ -1,5 +1,5 @@
 """Shared pytest fixtures. The `session` fixture gives each test an isolated
-in-memory SQLite session with all tables created — no app, no seeding, no
+in-memory SQLite session with all tables created; no app, no seeding, no
 network. Use it for model/cascade and service-layer tests."""
 import os
 import tempfile

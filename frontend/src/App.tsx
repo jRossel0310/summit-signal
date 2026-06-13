@@ -248,7 +248,7 @@ export default function App() {
 
       {backendOk === false && (
         <div className="error-note" style={{ margin: 0, borderRadius: 0 }}>
-          Backend unreachable — start it with: <code>cd backend && uvicorn app.main:app --reload --port 8000</code>
+          Backend unreachable - start it with: <code>cd backend && uvicorn app.main:app --reload --port 8000</code>
         </div>
       )}
 

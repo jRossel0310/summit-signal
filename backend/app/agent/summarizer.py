@@ -1,4 +1,4 @@
-"""AI summary module — rule-based only.
+"""AI summary module (rule-based only).
 
 Deterministic markdown built from connector results and risk flags.
 Ends with the required disclaimer.
@@ -23,7 +23,7 @@ def _section(flags, severity):
         return "- None identified from the sources checked.\n"
     out = ""
     for f in rows:
-        out += f"- **{f['title']}** — {f['description']}"
+        out += f"- **{f['title']}**: {f['description']}"
         if f.get("source_url"):
             out += f" ([source]({f['source_url']}))"
         out += "\n"
@@ -33,7 +33,7 @@ def _section(flags, severity):
 def _rule_based(trip, flags, outputs, checklist) -> str:
     by = {o["connector_name"]: o for o in outputs}
     md = [f"## Trip overview",
-          f"**{trip['name']}** — {trip.get('location_name') or 'selected point'} "
+          f"**{trip['name']}** - {trip.get('location_name') or 'selected point'} "
           f"({trip['latitude']:.4f}, {trip['longitude']:.4f}), "
           f"{trip['start_date']} to {trip['end_date']}, "
           f"trip type: {trip['trip_type']}."]
@@ -56,7 +56,7 @@ def _rule_based(trip, flags, outputs, checklist) -> str:
         firsts = wx["periods"][:6]
         for p in firsts:
             md.append(f"- {p['name']}: {p['temperature_f']}F, {p['wind_speed'] or 'calm'}, "
-                      f"{p['precip_chance']}% precip — {p['short_forecast']}")
+                      f"{p['precip_chance']}% precip, {p['short_forecast']}")
     else:
         md.append("No NWS forecast data was retrieved; check forecast.weather.gov manually.")
 
@@ -126,7 +126,7 @@ def _rule_based(trip, flags, outputs, checklist) -> str:
         zone = avn.get("zone") or {}
         if zone:
             md.append(f"Forecast coverage: {zone.get('center') or zone.get('zone_name') or 'see link'}"
-                      + (f" — {zone.get('forecast_link')}" if zone.get("forecast_link") else ""))
+                      + (f" - {zone.get('forecast_link')}" if zone.get("forecast_link") else ""))
         if avn.get("manual_check_required"):
             md.append("**Manual avalanche forecast check required** for this trip type/terrain.")
 
@@ -148,11 +148,11 @@ def _rule_based(trip, flags, outputs, checklist) -> str:
     md.append("\n## Sources")
     for o in outputs:
         if o.get("source_name"):
-            line = f"- {o['source_name']} — status: {o['status']}"
+            line = f"- {o['source_name']} - status: {o['status']}"
             if o.get("source_timestamp"):
                 line += f", source time: {o['source_timestamp']}"
             if o.get("source_url"):
-                line += f" — {o['source_url']}"
+                line += f" - {o['source_url']}"
             md.append(line)
 
     md.append(f"\n---\n*{DISCLAIMER}*")

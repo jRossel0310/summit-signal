@@ -49,13 +49,13 @@ export function StatusBanner({ status, sub }: { status: string | null; sub?: str
 }
 
 export function Freshness({ retrievedAt, staleHours = 24 }: { retrievedAt: string | null; staleHours?: number }) {
-  if (!retrievedAt) return <span className="freshness">retrieved: —</span>;
+  if (!retrievedAt) return <span className="freshness">retrieved: -</span>;
   const ageH = (Date.now() - new Date(retrievedAt).getTime()) / 3600000;
   const stale = ageH > staleHours;
   return (
     <span className={`freshness${stale ? " stale" : ""}`} title={fmtTime(retrievedAt)}>
       retrieved {ageLabel(retrievedAt)}
-      {stale ? " — STALE" : ""}
+      {stale ? " - STALE" : ""}
     </span>
   );
 }

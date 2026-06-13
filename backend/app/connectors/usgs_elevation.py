@@ -1,6 +1,6 @@
 """USGS Elevation Connector.
 
-Uses the USGS Elevation Point Query Service (EPQS) — no API key required.
+Uses the USGS Elevation Point Query Service (EPQS); no API key required.
 Falls back to the open-meteo elevation API if EPQS is unreachable, since the
 elevation value feeds the lapse-rate module and is worth a second attempt.
 """

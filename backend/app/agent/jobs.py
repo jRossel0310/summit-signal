@@ -2,7 +2,7 @@
 
 Runs connectors in dependency order (weather and elevation first because other
 connectors read their shared context), persists every connector result, runs
-the risk engine, and writes the summary. Each connector failure is contained —
+the risk engine, and writes the summary. Each connector failure is contained;
 a failed source becomes a data-gap flag, never a crash.
 """
 from __future__ import annotations
@@ -72,7 +72,7 @@ def _run_check_inner(check_id: int):
     try:
         check = db.get(models.ConditionCheck, check_id)
         if check is None:
-            return  # check row is gone (deleted/race) — nothing to do
+            return  # check row is gone (deleted/race); nothing to do
         trip = db.get(models.Trip, check.trip_id)
         if trip is None:
             check.status = "failed"
@@ -112,7 +112,7 @@ def _run_check_inner(check_id: int):
             else:
                 try:
                     out = module.run(ctx)
-                except Exception as e:  # noqa: BLE001 — connectors shouldn't raise, but belt & braces
+                except Exception as e:  # noqa: BLE001 - connectors shouldn't raise, but belt & braces
                     out = ConnectorOutput(connector_name=name, status="failed",
                                           error_message=f"{e}\n{traceback.format_exc()[:500]}")
             outputs.append(out)

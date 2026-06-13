@@ -100,12 +100,12 @@ function ConnectorCard({ r, staleHours }: { r: ConnectorResult; staleHours: numb
         );
       }
       case "nps_alerts": {
-        if (n.applicable === false) return <div style={{ fontSize: 12.5 }}>Not applicable — no NPS unit near this point.</div>;
+        if (n.applicable === false) return <div style={{ fontSize: 12.5 }}>Not applicable - no NPS unit near this point.</div>;
         const alerts = n.alerts as any[] | undefined;
         return (
           <div className="kv">
             <span className="k">Units checked</span>
-            <span className="v">{(n.parks as any[] | undefined)?.map((p) => p.name).join(", ") || "—"}</span>
+            <span className="v">{(n.parks as any[] | undefined)?.map((p) => p.name).join(", ") || "-"}</span>
             <span className="k">Alerts</span><span className="v">{alerts?.length ?? 0}</span>
           </div>
         );
@@ -155,7 +155,7 @@ function ConnectorCard({ r, staleHours }: { r: ConnectorResult; staleHours: numb
         <span style={{ marginLeft: "auto" }}><ConnStatus status={r.status} /></span>
       </div>
       <div className="meta">
-        <span>source: {r.source_name || "—"}</span>
+        <span>source: {r.source_name || "-"}</span>
         <Freshness retrievedAt={r.retrieved_at} staleHours={staleHours} />
         {r.source_timestamp && <span title="timestamp reported by the source">source ts: {fmtTime(r.source_timestamp)}</span>}
         {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer">source link ↗</a>}
@@ -193,7 +193,7 @@ export default function ConditionDashboard({
   return (
     <div>
       <div className="section">
-        <h2 className="section-title">Condition dashboard — {trip.name}</h2>
+        <h2 className="section-title">Condition dashboard - {trip.name}</h2>
 
         <StatusBanner
           status={running ? "Check in progress…" : check?.overall_concern_status || trip.latest_concern_status}

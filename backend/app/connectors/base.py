@@ -1,7 +1,7 @@
 """Shared connector plumbing.
 
 Every connector module exposes:  run(ctx: ConnectorContext) -> ConnectorOutput
-Connectors are isolated: they never touch the database and never raise —
+Connectors are isolated: they never touch the database and never raise;
 failures come back as status="failed" with an error_message. That keeps the
 job runner simple and makes connectors replaceable.
 """

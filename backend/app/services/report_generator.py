@@ -54,7 +54,7 @@ def _e(s) -> str:
 def generate_report_html(trip: models.Trip, check: models.ConditionCheck | None) -> str:
     now = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     parts = [f"<!doctype html><html><head><meta charset='utf-8'>"
-             f"<title>SummitSignal report — {_e(trip.name)}</title><style>{CSS}</style></head><body>"]
+             f"<title>SummitSignal report - {_e(trip.name)}</title><style>{CSS}</style></head><body>"]
     parts.append("<div class='noprint'><button onclick='window.print()'>Print this report</button></div>")
     parts.append(f"<h1>SummitSignal planning report</h1>")
     parts.append(f"<div class='meta'>Generated {now} (local) &middot; "
@@ -67,7 +67,7 @@ def generate_report_html(trip: models.Trip, check: models.ConditionCheck | None)
         length = gpx.length_miles if gpx.length_miles is not None else "?"
         lo = gpx.min_elevation_ft if gpx.min_elevation_ft is not None else "?"
         hi = gpx.max_elevation_ft if gpx.max_elevation_ft is not None else "?"
-        route_line = (f"<tr><th>Route (GPX)</th><td>{_e(gpx.filename)} — "
+        route_line = (f"<tr><th>Route (GPX)</th><td>{_e(gpx.filename)} - "
                       f"~{length} mi, {lo}–{hi} ft</td></tr>")
     parts.append(
         "<table>"
@@ -77,7 +77,7 @@ def generate_report_html(trip: models.Trip, check: models.ConditionCheck | None)
         f"<tr><th>Dates</th><td>{_e(trip.start_date)} to {_e(trip.end_date)}</td></tr>"
         f"<tr><th>Trip type</th><td>{_e(trip.trip_type)}</td></tr>"
         f"{route_line}"
-        f"<tr><th>Notes</th><td>{_e(trip.notes) or '—'}</td></tr>"
+        f"<tr><th>Notes</th><td>{_e(trip.notes) or '-'}</td></tr>"
         "</table>")
 
     if check is None:
@@ -104,7 +104,7 @@ def generate_report_html(trip: models.Trip, check: models.ConditionCheck | None)
             for f in rows:
                 link = f" <span class='src'>(<a href='{_e(f.source_url)}'>source</a>)</span>" if f.source_url else ""
                 parts.append(f"<li><span class='badge {f.severity}'>{SEV_LABEL[f.severity]}</span> "
-                             f"<strong>{_e(f.title)}</strong> — {_e(f.description)}{link}</li>")
+                             f"<strong>{_e(f.title)}</strong>: {_e(f.description)}{link}</li>")
             parts.append("</ul>")
 
     results = {r.connector_name: r for r in check.connector_results}
@@ -118,8 +118,8 @@ def generate_report_html(trip: models.Trip, check: models.ConditionCheck | None)
             parts.append(
                 f"<tr><td>{_e(p.get('name', ''))}</td>"
                 f"<td>{_e(p.get('temperature_f', '?'))}F</td>"
-                f"<td>{_e(p.get('wind_speed', '—'))}</td>"
-                f"<td>{_e(p.get('precip_chance', '—'))}%</td>"
+                f"<td>{_e(p.get('wind_speed', '-'))}</td>"
+                f"<td>{_e(p.get('precip_chance', '-'))}%</td>"
                 f"<td>{_e(p.get('short_forecast', ''))}</td></tr>")
         parts.append("</table>")
     else:
@@ -147,7 +147,7 @@ def generate_report_html(trip: models.Trip, check: models.ConditionCheck | None)
     firms = _norm(results.get("nasa_firms"))
     if firms:
         parts.append(f"<li>Active fire detections (last {firms.get('search_days','?')} days): "
-                     f"{firms.get('count',0)}; nearest ~{firms.get('nearest_miles','—')} mi.</li>")
+                     f"{firms.get('count',0)}; nearest ~{firms.get('nearest_miles','-')} mi.</li>")
     else:
         parts.append(f"<li>Active fire detections: {_e(_err(results.get('nasa_firms')))}</li>")
     per = _norm(results.get("nifc_wfigs"))
@@ -187,7 +187,7 @@ def generate_report_html(trip: models.Trip, check: models.ConditionCheck | None)
         zone = av.get("zone") or {}
         if zone:
             parts.append(f"<p>Coverage: {_e(zone.get('center') or zone.get('zone_name') or 'see avalanche.org')}"
-                         + (f" — <a href='{_e(zone.get('forecast_link'))}'>{_e(zone.get('forecast_link'))}</a>"
+                         + (f" - <a href='{_e(zone.get('forecast_link'))}'>{_e(zone.get('forecast_link'))}</a>"
                             if zone.get("forecast_link") else "") + "</p>")
         if av.get("manual_check_required"):
             parts.append("<p><strong>Manual avalanche forecast check required.</strong> "
@@ -209,9 +209,9 @@ def generate_report_html(trip: models.Trip, check: models.ConditionCheck | None)
     parts.append("<h2>Sources and timestamps</h2>")
     parts.append("<table><tr><th>Source</th><th>Status</th><th>Source time</th><th>Retrieved</th><th>Link</th></tr>")
     for r in check.connector_results:
-        link = f"<a href='{_e(r.source_url)}'>link</a>" if r.source_url else "—"
+        link = f"<a href='{_e(r.source_url)}'>link</a>" if r.source_url else "-"
         parts.append(f"<tr><td>{_e(r.source_name or r.connector_name)}</td><td>{_e(r.status)}</td>"
-                     f"<td class='src'>{_e(r.source_timestamp or '—')}</td>"
+                     f"<td class='src'>{_e(r.source_timestamp or '-')}</td>"
                      f"<td class='src'>{_e(r.retrieved_at)}</td><td>{link}</td></tr>")
     parts.append("</table>")
 

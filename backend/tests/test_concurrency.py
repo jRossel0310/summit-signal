@@ -42,4 +42,4 @@ def test_run_check_marks_failed_when_trip_missing():
 
 
 def test_run_check_returns_quietly_when_check_missing():
-    jobs._run_check(999_999)  # nonexistent check id — must be a no-op, no exception
+    jobs._run_check(999_999)  # nonexistent check id; must be a no-op, no exception
