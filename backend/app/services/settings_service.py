@@ -1,5 +1,6 @@
-"""Settings access. Settings live in the app_settings table as JSON-ish strings;
-API keys live in api_keys. Environment variables override stored keys:
+"""Settings access. Settings live in the app_settings table as JSON-ish strings,
+scoped per user via a composite (user_id, key) primary key. API keys are not
+stored in the database; they come from environment variables only:
 SUMMIT_SIGNAL_FIRMS_KEY, SUMMIT_SIGNAL_AIRNOW_KEY, SUMMIT_SIGNAL_NPS_KEY.
 """
 import json
@@ -17,20 +18,10 @@ DEFAULT_SETTINGS = {
     "cold_low_f": 10.0,
     "stale_hours": 24.0,
     "connectors_enabled": {
-        "nws_weather": True,
-        "usgs_elevation": True,
-        "elevation_adjusted": True,
-        "nasa_firms": True,
-        "nifc_wfigs": True,
-        "airnow": True,
-        "nps_alerts": True,
-        "avalanche": True,
-        "weather_discussion": True,
+        "nws_weather": True, "usgs_elevation": True, "elevation_adjusted": True,
+        "nasa_firms": True, "nifc_wfigs": True, "airnow": True,
+        "nps_alerts": True, "avalanche": True, "weather_discussion": True,
     },
-    "ollama_enabled": False,
-    "ollama_url": "http://localhost:11434",
-    "ollama_model": "",
-    "schedule_hours": 0.0,
 }
 
 ENV_KEY_MAP = {
@@ -40,50 +31,39 @@ ENV_KEY_MAP = {
 }
 
 
-def get_settings(db: Session) -> dict:
+def get_settings(db: Session, user_id: int) -> dict:
     out = json.loads(json.dumps(DEFAULT_SETTINGS))  # deep copy
-    for row in db.query(models.AppSetting).all():
+    rows = db.query(models.AppSetting).filter(models.AppSetting.user_id == user_id).all()
+    for row in rows:
         if row.key in out:
             try:
                 out[row.key] = json.loads(row.value)
             except (json.JSONDecodeError, TypeError):
-                continue  # unparseable — keep the typed default rather than a raw string
+                continue  # unparseable; keep the typed default rather than a raw string
     return out
 
 
-def update_settings(db: Session, updates: dict) -> dict:
+def update_settings(db: Session, user_id: int, updates: dict) -> dict:
     for key, value in updates.items():
         if key not in DEFAULT_SETTINGS or value is None:
             continue
         if key == "connectors_enabled":
-            current = get_settings(db)["connectors_enabled"]
+            current = get_settings(db, user_id)["connectors_enabled"]
             current.update(value)
             value = current
-        row = db.get(models.AppSetting, key)
+        row = db.get(models.AppSetting, {"user_id": user_id, "key": key})
         if row is None:
-            row = models.AppSetting(key=key, value=json.dumps(value))
-            db.add(row)
+            db.add(models.AppSetting(user_id=user_id, key=key, value=json.dumps(value)))
         else:
             row.value = json.dumps(value)
     db.commit()
-    return get_settings(db)
+    return get_settings(db, user_id)
 
 
-def set_api_key(db: Session, name: str, value: str):
-    row = db.get(models.ApiKey, name)
-    if row is None:
-        db.add(models.ApiKey(name=name, value=value))
-    else:
-        row.value = value
-    db.commit()
-
-
-def get_api_key(db: Session, name: str) -> str:
+def get_api_key(db, name: str) -> str:
+    """API keys come from environment variables only (operator-provided)."""
     env_var = ENV_KEY_MAP.get(name)
-    if env_var and os.environ.get(env_var):
-        return os.environ[env_var]
-    row = db.get(models.ApiKey, name)
-    return (row.value or "").strip() if row else ""
+    return os.environ.get(env_var, "").strip() if env_var else ""
 
 
 def api_keys_present(db: Session) -> dict:

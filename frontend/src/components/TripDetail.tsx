@@ -82,7 +82,7 @@ export default function TripDetail({ trip, onBack, onTripUpdated, onTripDeleted 
           <span>{TRIP_TYPE_LABELS[trip.trip_type]}</span>
           {trip.gpx_route && (
             <span>
-              GPX: {trip.gpx_route.length_miles != null ? `${trip.gpx_route.length_miles.toFixed(1)} mi` : "—"}
+              GPX: {trip.gpx_route.length_miles != null ? `${trip.gpx_route.length_miles.toFixed(1)} mi` : "-"}
               {trip.gpx_route.min_elevation_ft != null && trip.gpx_route.max_elevation_ft != null &&
                 `, ${Math.round(trip.gpx_route.min_elevation_ft).toLocaleString()}–${Math.round(trip.gpx_route.max_elevation_ft).toLocaleString()} ft`}
             </span>
@@ -127,9 +127,17 @@ export default function TripDetail({ trip, onBack, onTripUpdated, onTripDeleted 
           <h2 className="section-title">Actions</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {activeCheck && (
-              <a className="btn full" style={{ textDecoration: "none" }} href={api.printReportUrl(trip.id, activeCheck.id)} target="_blank" rel="noreferrer">
-                Print / export report ↗
-              </a>
+              <button className="btn full" onClick={async () => {
+                try {
+                  const html = await api.fetchReportHtml(trip.id, activeCheck.id);
+                  const blob = new Blob([html], { type: "text/html" });
+                  const url = URL.createObjectURL(blob);
+                  window.open(url, "_blank");
+                  setTimeout(() => URL.revokeObjectURL(url), 60000);
+                } catch (e) { setError((e as Error).message); }
+              }}>
+                Print / export report
+              </button>
             )}
             <button className="btn ghost full" onClick={deleteTrip} style={{ color: "var(--red)", borderColor: "var(--red)" }}>
               Delete trip

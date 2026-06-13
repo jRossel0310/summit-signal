@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./lib/api";
+import { api, API_BASE } from "./lib/api";
 import type {
   AppSettings, CheckStatus, ConditionCheckDetail, SearchResult, Trip,
 } from "./types";
@@ -10,8 +10,10 @@ import SavedTrips from "./components/SavedTrips";
 import ConditionDashboard from "./components/ConditionDashboard";
 import TripDetail from "./components/TripDetail";
 import SettingsView from "./components/SettingsView";
+import AuthScreen from "./components/AuthScreen";
+import { useAuth } from "./lib/auth";
 
-type View = "dashboard" | "detail" | "settings";
+type View = "dashboard" | "detail" | "settings" | "auth";
 
 const Logo = () => (
   <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden>
@@ -22,6 +24,7 @@ const Logo = () => (
 );
 
 export default function App() {
+  const { user, ready, logout } = useAuth();
   const [view, setView] = useState<View>("dashboard");
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -53,14 +56,28 @@ export default function App() {
   // ---- boot ----
   useEffect(() => {
     api.health().then(() => setBackendOk(true)).catch(() => setBackendOk(false));
-    api.listTrips().then(setTrips).catch(() => setBackendOk(false));
-    api.getSettings().then(setSettings).catch(() => {});
     const iv = window.setInterval(
       () => api.health().then(() => setBackendOk(true)).catch(() => setBackendOk(false)),
       20000,
     );
     return () => window.clearInterval(iv);
   }, []);
+
+  // ---- load per-user data when logged in ----
+  useEffect(() => {
+    if (!user) {
+      setTrips([]); setSelectedTrip(null); setCheck(null);
+      setView((v) => (v === "settings" || v === "detail" ? "dashboard" : v));
+      return;
+    }
+    api.listTrips().then(setTrips).catch(() => {});
+    api.getSettings().then(setSettings).catch(() => {});
+  }, [user]);
+
+  // bounce away from the auth view once logged in
+  useEffect(() => {
+    if (user && view === "auth") setView("dashboard");
+  }, [user, view]);
 
   const refreshTrips = useCallback(async () => {
     try {
@@ -205,6 +222,7 @@ export default function App() {
   }
 
   // ---- render ----
+  if (!ready) return null;
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -212,26 +230,35 @@ export default function App() {
           <Logo />
           <div>
             <div className="brand-name">SummitSignal</div>
-            <div className="brand-sub">trip condition dashboard · local-first</div>
+            <div className="brand-sub">trip condition dashboard · multi-user</div>
           </div>
         </div>
         <div className="backend-dot" title={backendOk ? "backend connected" : "backend unreachable"}>
           <span className={`dot ${backendOk === null ? "" : backendOk ? "ok" : "bad"}`} />
-          {backendOk === false ? "backend offline" : "localhost:8000"}
+          {backendOk === false ? "backend offline" : new URL(API_BASE).host}
         </div>
         <nav className="topbar-nav">
           <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>Map</button>
-          <button className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}>Settings</button>
+          {user && <button className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}>Settings</button>}
+          {user
+            ? <button onClick={() => { logout(); setView("dashboard"); }}>Log out ({user.email})</button>
+            : <button onClick={() => setView("auth")}>Log in</button>}
         </nav>
       </header>
 
       {backendOk === false && (
         <div className="error-note" style={{ margin: 0, borderRadius: 0 }}>
-          Backend unreachable — start it with: <code>cd backend && uvicorn app.main:app --reload --port 8000</code>
+          Backend unreachable - start it with: <code>cd backend && uvicorn app.main:app --reload --port 8000</code>
         </div>
       )}
 
-      {view === "settings" && (
+      {view === "auth" && !user && (
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <AuthScreen />
+        </div>
+      )}
+
+      {view === "settings" && user && (
         <div style={{ flex: 1, minHeight: 0 }}>
           <SettingsView onSaved={setSettings} />
         </div>
@@ -265,21 +292,30 @@ export default function App() {
       {view === "dashboard" && (
         <div className="main-grid">
           <aside className="panel-left contour-bg">
-            <div className="section">
-              <h2 className="section-title">New trip</h2>
-              <TripForm selectedPoint={selectedPoint} locationName={pointName} onCreated={onTripCreated} />
-            </div>
-            <div className="section">
-              <h2 className="section-title">Saved trips ({trips.length})</h2>
-              <SavedTrips
-                trips={trips}
-                selectedTripId={selectedTrip?.id ?? null}
-                onSelect={selectTrip}
-                onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
-                onRunAll={runAll}
-                runningAll={runningAll}
-              />
-            </div>
+            {user ? (
+              <>
+                <div className="section">
+                  <h2 className="section-title">New trip</h2>
+                  <TripForm selectedPoint={selectedPoint} locationName={pointName} onCreated={onTripCreated} />
+                </div>
+                <div className="section">
+                  <h2 className="section-title">Saved trips ({trips.length})</h2>
+                  <SavedTrips
+                    trips={trips}
+                    selectedTripId={selectedTrip?.id ?? null}
+                    onSelect={selectTrip}
+                    onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
+                    onRunAll={runAll}
+                    runningAll={runningAll}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="section">
+                <div className="empty-note">Log in to save trips and run condition checks. You can browse and search the map without an account.</div>
+                <button className="btn primary" style={{ marginTop: 8 }} onClick={() => setView("auth")}>Log in / Sign up</button>
+              </div>
+            )}
             <div className="section">
               <h2 className="section-title">Map layers</h2>
               <div className="layer-toggles">
@@ -338,18 +374,26 @@ export default function App() {
           </main>
 
           <aside className="panel-right">
-            <ConditionDashboard
-              trip={selectedTrip}
-              check={check}
-              liveStatus={liveStatus}
-              running={running}
-              loadingCheck={loadingCheck}
-              error={dashError}
-              staleHours={settings?.stale_hours ?? 24}
-              onRunCheck={runCheck}
-              onRegenerateSummary={regenerateSummary}
-              regenBusy={regenBusy}
-            />
+            {user ? (
+              <ConditionDashboard
+                trip={selectedTrip}
+                check={check}
+                liveStatus={liveStatus}
+                running={running}
+                loadingCheck={loadingCheck}
+                error={dashError}
+                staleHours={settings?.stale_hours ?? 24}
+                onRunCheck={runCheck}
+                onRegenerateSummary={regenerateSummary}
+                regenBusy={regenBusy}
+              />
+            ) : (
+              <div className="section">
+                <h2 className="section-title">Condition dashboard</h2>
+                <div className="empty-note">Log in to run condition checks and see source results for your trips.</div>
+                <button className="btn primary" style={{ marginTop: 8 }} onClick={() => setView("auth")}>Log in / Sign up</button>
+              </div>
+            )}
           </aside>
         </div>
       )}

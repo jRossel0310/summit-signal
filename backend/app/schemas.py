@@ -27,6 +27,29 @@ class ConnectorOutput(BaseModel):
     error_message: Optional[str] = None
 
 
+# ---------- Auth ----------
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    invite_code: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+
+
+class TokenResponse(BaseModel):
+    token: str
+    user: UserOut
+
+
 # ---------- Trips ----------
 
 class ElevationBands(BaseModel):
@@ -166,10 +189,6 @@ class SettingsOut(BaseModel):
     cold_low_f: float = 10.0
     stale_hours: float = 24.0
     connectors_enabled: dict = Field(default_factory=dict)
-    ollama_enabled: bool = False
-    ollama_url: str = "http://localhost:11434"
-    ollama_model: str = ""
-    schedule_hours: float = 0.0  # 0 = disabled
     api_keys_present: dict = Field(default_factory=dict)
 
 
@@ -183,12 +202,3 @@ class SettingsUpdate(BaseModel):
     cold_low_f: Optional[float] = None
     stale_hours: Optional[float] = None
     connectors_enabled: Optional[dict] = None
-    ollama_enabled: Optional[bool] = None
-    ollama_url: Optional[str] = None
-    ollama_model: Optional[str] = None
-    schedule_hours: Optional[float] = None
-    api_keys: Optional[dict] = None  # {"firms": "...", "airnow": "...", "nps": "..."}
-
-
-class ScheduleRequest(BaseModel):
-    hours: float  # 0 disables

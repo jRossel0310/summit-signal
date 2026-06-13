@@ -1,7 +1,7 @@
 """Risk engine.
 
 Turns normalized connector outputs into risk flags and an overall concern
-status. SummitSignal never makes go/no-go calls — statuses are limited to the
+status. SummitSignal never makes go/no-go calls; statuses are limited to the
 five approved phrases and flags describe what was found, where it came from,
 and how confident the source signal is.
 """
@@ -168,7 +168,7 @@ def _elevation_flags(o, trip_type):
             f"Lapse-rate estimate puts the overnight low near "
             f"{hp.get('estimated_overnight_low_at_high_point_f')}F at the high point. "
             "Poor overnight refreeze affects snow bridges and glacier travel. "
-            "This is an estimate — verify with the official forecast discussion.",
+            "This is an estimate; verify with the official forecast discussion.",
             "elevation_adjusted", "", "low"))
     if n.get("is_estimate") and n.get("bands"):
         flags.append(flag(
@@ -297,7 +297,7 @@ def build_manual_checklist(outputs: list[ConnectorOutput], trip_type: str) -> li
     items = [
         "Confirm road and trailhead access with the managing agency (USFS/BLM/NPS/state).",
         "Check permit and quota requirements for your route and dates.",
-        "Re-run this condition check within 24 hours of departure — forecasts change.",
+        "Re-run this condition check within 24 hours of departure; forecasts change.",
         "Leave a trip plan with an emergency contact.",
     ]
     av = by_name.get("avalanche")

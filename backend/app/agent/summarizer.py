@@ -1,17 +1,9 @@
-"""AI summary module.
+"""AI summary module (rule-based only).
 
-Two implementations behind one interface:
-  * RuleBasedSummarizer — deterministic markdown built only from connector
-    results and risk flags (always available).
-  * OllamaSummarizer — optional local LLM. The prompt contains only connector
-    data and instructs the model not to invent facts; if Ollama is missing or
-    errors, the rule-based summary is used instead.
-
-Both end with the required disclaimer.
+Deterministic markdown built from connector results and risk flags.
+Ends with the required disclaimer.
 """
 from __future__ import annotations
-import json
-from . import ollama_client
 
 DISCLAIMER = ("This tool highlights planning concerns from available sources. "
               "It does not determine whether a trip is safe.")
@@ -19,15 +11,8 @@ DISCLAIMER = ("This tool highlights planning concerns from available sources. "
 
 def summarize(trip: dict, flags: list[dict], outputs: list[dict],
               checklist: list[str], settings: dict) -> tuple[str, str]:
-    """Returns (markdown, generator_name)."""
-    rule_md = _rule_based(trip, flags, outputs, checklist)
-    if settings.get("ollama_enabled") and settings.get("ollama_model"):
-        url = settings.get("ollama_url", "http://localhost:11434")
-        if ollama_client.is_available(url):
-            llm_md = _ollama(url, settings["ollama_model"], trip, flags, outputs, checklist)
-            if llm_md:
-                return llm_md, f"ollama:{settings['ollama_model']}"
-    return rule_md, "rule_based"
+    """Returns (markdown, generator_name). Rule-based only."""
+    return _rule_based(trip, flags, outputs, checklist), "rule_based"
 
 
 # ---------------- rule-based ----------------
@@ -38,7 +23,7 @@ def _section(flags, severity):
         return "- None identified from the sources checked.\n"
     out = ""
     for f in rows:
-        out += f"- **{f['title']}** — {f['description']}"
+        out += f"- **{f['title']}**: {f['description']}"
         if f.get("source_url"):
             out += f" ([source]({f['source_url']}))"
         out += "\n"
@@ -48,7 +33,7 @@ def _section(flags, severity):
 def _rule_based(trip, flags, outputs, checklist) -> str:
     by = {o["connector_name"]: o for o in outputs}
     md = [f"## Trip overview",
-          f"**{trip['name']}** — {trip.get('location_name') or 'selected point'} "
+          f"**{trip['name']}** - {trip.get('location_name') or 'selected point'} "
           f"({trip['latitude']:.4f}, {trip['longitude']:.4f}), "
           f"{trip['start_date']} to {trip['end_date']}, "
           f"trip type: {trip['trip_type']}."]
@@ -71,7 +56,7 @@ def _rule_based(trip, flags, outputs, checklist) -> str:
         firsts = wx["periods"][:6]
         for p in firsts:
             md.append(f"- {p['name']}: {p['temperature_f']}F, {p['wind_speed'] or 'calm'}, "
-                      f"{p['precip_chance']}% precip — {p['short_forecast']}")
+                      f"{p['precip_chance']}% precip, {p['short_forecast']}")
     else:
         md.append("No NWS forecast data was retrieved; check forecast.weather.gov manually.")
 
@@ -141,7 +126,7 @@ def _rule_based(trip, flags, outputs, checklist) -> str:
         zone = avn.get("zone") or {}
         if zone:
             md.append(f"Forecast coverage: {zone.get('center') or zone.get('zone_name') or 'see link'}"
-                      + (f" — {zone.get('forecast_link')}" if zone.get("forecast_link") else ""))
+                      + (f" - {zone.get('forecast_link')}" if zone.get("forecast_link") else ""))
         if avn.get("manual_check_required"):
             md.append("**Manual avalanche forecast check required** for this trip type/terrain.")
 
@@ -163,52 +148,12 @@ def _rule_based(trip, flags, outputs, checklist) -> str:
     md.append("\n## Sources")
     for o in outputs:
         if o.get("source_name"):
-            line = f"- {o['source_name']} — status: {o['status']}"
+            line = f"- {o['source_name']} - status: {o['status']}"
             if o.get("source_timestamp"):
                 line += f", source time: {o['source_timestamp']}"
             if o.get("source_url"):
-                line += f" — {o['source_url']}"
+                line += f" - {o['source_url']}"
             md.append(line)
 
     md.append(f"\n---\n*{DISCLAIMER}*")
     return "\n".join(md)
-
-
-# ---------------- Ollama ----------------
-
-SYSTEM_PROMPT = (
-    "You are a backcountry trip-planning assistant. Write a concise markdown planning "
-    "summary using ONLY the JSON data provided. Do not invent facts, numbers, places, or "
-    "conditions that are not in the data. Never say a trip is safe or unsafe and never "
-    "make a go/no-go recommendation. Use these sections: Trip overview, Major concerns, "
-    "Moderate concerns, Weather interpretation, Fire and smoke, Official alerts, "
-    "Avalanche/snow, Data gaps, Manual verification checklist, Sources. "
-    "If data for a section is missing, say so plainly."
-)
-
-
-def _ollama(url, model, trip, flags, outputs, checklist) -> str | None:
-    slim_outputs = []
-    for o in outputs:
-        slim_outputs.append({
-            "connector": o["connector_name"], "status": o["status"],
-            "source": o.get("source_name"), "source_url": o.get("source_url"),
-            "source_timestamp": o.get("source_timestamp"),
-            "normalized": _truncate(o.get("normalized")),
-        })
-    payload = {"trip": trip, "risk_flags": flags, "connector_results": slim_outputs,
-               "manual_checklist": checklist}
-    prompt = ("Connector data:\n```json\n" + json.dumps(payload, default=str)[:24000] +
-              "\n```\nWrite the planning summary now. End with this exact disclaimer line: "
-              f"\"{DISCLAIMER}\"")
-    out = ollama_client.generate(url, model, prompt, SYSTEM_PROMPT)
-    if out and DISCLAIMER not in out:
-        out += f"\n\n---\n*{DISCLAIMER}*"
-    return out
-
-
-def _truncate(obj, limit=4000):
-    s = json.dumps(obj, default=str)
-    if len(s) <= limit:
-        return obj
-    return s[:limit] + "...(truncated)"

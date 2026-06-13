@@ -1,4 +1,4 @@
-// Thin typed client for the local FastAPI backend.
+// Thin typed client for the FastAPI backend.
 import type {
   AppSettings,
   CheckStatus,
@@ -8,19 +8,37 @@ import type {
   SettingsUpdate,
   Trip,
   TripCreate,
+  User,
 } from "../types";
 
-export const API_BASE = "http://localhost:8000";
+export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+
+const TOKEN_KEY = "summitsignal_token";
+export function getToken(): string | null { return localStorage.getItem(TOKEN_KEY); }
+export function setToken(t: string | null) {
+  if (t) localStorage.setItem(TOKEN_KEY, t);
+  else localStorage.removeItem(TOKEN_KEY);
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
-      headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers || {}),
+      },
       ...init,
     });
   } catch {
-    throw new Error("Backend unreachable. Is the Python server running on port 8000?");
+    throw new Error("Backend unreachable. Is the server running?");
+  }
+  if (res.status === 401) {
+    setToken(null);
+    window.dispatchEvent(new Event("summitsignal-unauthorized"));
+    throw new Error("Your session expired. Please log in again.");
   }
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`;
@@ -37,6 +55,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<{ status: string }>("/health"),
+
+  signup: (email: string, password: string, invite_code: string) =>
+    request<{ token: string; user: User }>("/auth/signup", {
+      method: "POST", body: JSON.stringify({ email, password, invite_code }) }),
+  login: (email: string, password: string) =>
+    request<{ token: string; user: User }>("/auth/login", {
+      method: "POST", body: JSON.stringify({ email, password }) }),
+  me: () => request<User>("/auth/me"),
 
   searchLocation: (query: string) =>
     request<{ results: SearchResult[] }>("/search/location", {
@@ -55,7 +81,12 @@ export const api = {
   uploadGpx: async (tripId: number, file: File): Promise<Trip> => {
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch(`${API_BASE}/trips/${tripId}/upload-gpx`, { method: "POST", body: fd });
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/trips/${tripId}/upload-gpx`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new Error(body?.detail || `GPX upload failed (${res.status})`);
@@ -74,21 +105,26 @@ export const api = {
       { method: "POST" },
     ),
 
-  printReportUrl: (tripId: number, checkId?: number) =>
-    `${API_BASE}/trips/${tripId}/print-report${checkId ? `?check_id=${checkId}` : ""}`,
+  fetchReportHtml: async (tripId: number, checkId?: number): Promise<string> => {
+    const q = checkId ? `?check_id=${checkId}` : "";
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/trips/${tripId}/print-report${q}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`Report failed (${res.status})`);
+    return res.text();
+  },
 
   getSettings: () => request<AppSettings>("/settings"),
   updateSettings: (patch: SettingsUpdate) =>
     request<AppSettings>("/settings", { method: "POST", body: JSON.stringify(patch) }),
-  ollamaModels: () =>
-    request<{ available: boolean; models: string[] }>("/settings/ollama-models"),
 
   runAllSavedTrips: () =>
     request<{ started: number[] }>("/agent/run-all-saved-trips", { method: "POST" }),
 };
 
 export function fmtTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleString(undefined, {

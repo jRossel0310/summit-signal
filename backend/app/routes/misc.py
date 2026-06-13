@@ -9,13 +9,14 @@ from .. import models
 from ..database import get_db
 from ..schemas import (
     SettingsOut, SettingsUpdate, LocationSearchRequest, LocationSearchResult,
-    LocationSearchResponse, ScheduleRequest,
+    LocationSearchResponse,
 )
 from ..services.settings_service import (
-    get_settings, update_settings, set_api_key, api_keys_present,
+    get_settings, update_settings, api_keys_present,
 )
+from ..security import get_current_user
 from ..connectors.base import http_client
-from ..agent import jobs, scheduler, ollama_client
+from ..agent import jobs
 
 router = APIRouter()
 
@@ -25,33 +26,21 @@ COORD_RE = re.compile(r"^\s*(-?\d{1,2}(?:\.\d+)?)\s*[, ]\s*(-?\d{1,3}(?:\.\d+)?)
 # ---------------- settings ----------------
 
 @router.get("/settings", response_model=SettingsOut)
-def read_settings(db: Session = Depends(get_db)):
-    s = get_settings(db)
+def read_settings(db: Session = Depends(get_db),
+                  user: models.User = Depends(get_current_user)):
+    s = get_settings(db, user.id)
     s["api_keys_present"] = api_keys_present(db)
     return SettingsOut(**s)
 
 
 @router.post("/settings", response_model=SettingsOut)
-def write_settings(body: SettingsUpdate, db: Session = Depends(get_db)):
+def write_settings(body: SettingsUpdate, db: Session = Depends(get_db),
+                   user: models.User = Depends(get_current_user)):
     data = body.model_dump(exclude_unset=True)
-    keys = data.pop("api_keys", None)
-    if keys:
-        for name, value in keys.items():
-            if name in ("firms", "airnow", "nps"):
-                set_api_key(db, name, value or "")
-    s = update_settings(db, data)
-    if "schedule_hours" in data and data["schedule_hours"] is not None:
-        scheduler.set_interval_hours(float(data["schedule_hours"]))
+    data.pop("api_keys", None)  # API keys are env-only now
+    s = update_settings(db, user.id, data)
     s["api_keys_present"] = api_keys_present(db)
     return SettingsOut(**s)
-
-
-@router.get("/settings/ollama-models")
-def ollama_models(db: Session = Depends(get_db)):
-    s = get_settings(db)
-    url = s.get("ollama_url", "http://localhost:11434")
-    available = ollama_client.is_available(url)
-    return {"available": available, "models": ollama_client.list_models(url) if available else []}
 
 
 # ---------------- location search ----------------
@@ -100,18 +89,9 @@ def search_location(body: LocationSearchRequest, db: Session = Depends(get_db)):
 # ---------------- agent ----------------
 
 @router.post("/agent/run-all-saved-trips")
-def run_all():
-    check_ids = jobs.run_all_saved_trips()
+def run_all(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    check_ids = jobs.run_all_saved_trips(user.id)
     return {"started_condition_checks": check_ids}
 
 
-@router.post("/agent/schedule")
-def set_schedule(body: ScheduleRequest, db: Session = Depends(get_db)):
-    update_settings(db, {"schedule_hours": body.hours})
-    scheduler.set_interval_hours(body.hours)
-    return {"schedule_hours": body.hours, "jobs": scheduler.list_jobs()}
 
-
-@router.get("/agent/jobs")
-def get_jobs():
-    return {"jobs": scheduler.list_jobs()}

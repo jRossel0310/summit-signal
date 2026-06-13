@@ -84,7 +84,7 @@ export default function TripForm({ selectedPoint, locationName, onCreated }: Pro
           readOnly
           value={
             selectedPoint
-              ? `${selectedPoint.lat.toFixed(5)}, ${selectedPoint.lon.toFixed(5)}${locationName ? ` — ${locationName}` : ""}`
+              ? `${selectedPoint.lat.toFixed(5)}, ${selectedPoint.lon.toFixed(5)}${locationName ? ` - ${locationName}` : ""}`
               : "click the map or use search"
           }
           style={{ background: "var(--panel-2)", fontFamily: "var(--mono)", fontSize: 11.5 }}

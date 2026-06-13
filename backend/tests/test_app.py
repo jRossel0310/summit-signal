@@ -12,11 +12,13 @@ from app.main import app  # noqa: E402
 from app.schemas import ConnectorOutput  # noqa: E402
 from app.services import risk_engine, gpx_parser  # noqa: E402
 from app.agent import summarizer  # noqa: E402
+from tests.conftest import signup_and_token  # noqa: E402
 
 # Entering the context manager runs the FastAPI lifespan, which creates
 # tables and seeds the sample trips. Kept open for the whole module.
 _client_cm = TestClient(app)
 client = _client_cm.__enter__()
+_TOKEN, _UID, AUTH = signup_and_token(client, "testapp@example.com")
 
 
 def teardown_module(_module):
@@ -37,10 +39,10 @@ def test_health():
 
 
 def test_seeded_trips_and_crud():
-    r = client.get("/trips")
+    r = client.get("/trips", headers=AUTH)
     assert r.status_code == 200
-    assert len(r.json()) >= 4  # seed data
-    r = client.post("/trips", json={
+    assert len(r.json()) >= 4  # seeded on this user's signup
+    r = client.post("/trips", headers=AUTH, json={
         "name": "Test trip", "location_name": "Somewhere, WA",
         "latitude": 47.0, "longitude": -121.0,
         "start_date": "2026-07-01", "end_date": "2026-07-03",
@@ -48,9 +50,9 @@ def test_seeded_trips_and_crud():
     })
     assert r.status_code == 200
     tid = r.json()["id"]
-    r = client.patch(f"/trips/{tid}", json={"notes": "updated"})
+    r = client.patch(f"/trips/{tid}", headers=AUTH, json={"notes": "updated"})
     assert r.json()["notes"] == "updated"
-    r = client.delete(f"/trips/{tid}")
+    r = client.delete(f"/trips/{tid}", headers=AUTH)
     assert r.status_code == 200
 
 
@@ -58,21 +60,20 @@ def test_gpx_parse_and_upload():
     parsed = gpx_parser.parse_gpx(GPX)
     assert parsed["length_miles"] > 2
     assert parsed["min_elevation_ft"] and parsed["max_elevation_ft"]
-    trips = client.get("/trips").json()
-    tid = trips[0]["id"]
-    r = client.post(f"/trips/{tid}/upload-gpx",
+    created = client.post("/trips", headers=AUTH, json={
+        "name": "GPX trip", "latitude": 46.8, "longitude": -121.7,
+        "start_date": "2026-07-01", "end_date": "2026-07-03", "trip_type": "backpacking"}).json()
+    tid = created["id"]
+    r = client.post(f"/trips/{tid}/upload-gpx", headers=AUTH,
                     files={"file": ("route.gpx", GPX, "application/gpx+xml")})
     assert r.status_code == 200
     assert r.json()["gpx_route"]["length_miles"] > 2
 
 
 def test_settings_roundtrip():
-    r = client.post("/settings", json={"fire_radius_miles": 45,
-                                       "api_keys": {"airnow": "test-key"}})
+    r = client.post("/settings", headers=AUTH, json={"fire_radius_miles": 45})
     assert r.status_code == 200
-    body = r.json()
-    assert body["fire_radius_miles"] == 45
-    assert body["api_keys_present"]["airnow"] is True
+    assert r.json()["fire_radius_miles"] == 45
 
 
 def _fake_outputs():
@@ -135,8 +136,10 @@ def test_rule_based_summary_contains_disclaimer():
 
 
 def test_print_report_route():
-    trips = client.get("/trips").json()
-    r = client.get(f"/trips/{trips[0]['id']}/print-report")
+    created = client.post("/trips", headers=AUTH, json={
+        "name": "Report trip", "latitude": 46.8, "longitude": -121.7,
+        "start_date": "2026-07-01", "end_date": "2026-07-03", "trip_type": "general"}).json()
+    r = client.get(f"/trips/{created['id']}/print-report", headers=AUTH)
     assert r.status_code == 200
     assert "SummitSignal planning report" in r.text
     assert "does not determine whether a trip is safe" in r.text

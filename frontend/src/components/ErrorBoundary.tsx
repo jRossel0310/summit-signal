@@ -30,7 +30,7 @@ export default class ErrorBoundary extends Component<Props, State> {
         <div style={{ padding: "32px 40px", fontFamily: "system-ui, sans-serif", maxWidth: 760 }}>
           <h2 style={{ marginBottom: 8 }}>Something went wrong displaying this view.</h2>
           <p style={{ color: "#555", marginTop: 0 }}>
-            The rest of the app is fine — this panel hit an unexpected error.
+            The rest of the app is fine - this panel hit an unexpected error.
           </p>
           <pre
             style={{

@@ -1,4 +1,4 @@
-/* SummitSignal — field-planning dashboard theme.
+/* SummitSignal - field-planning dashboard theme.
    Paper-chart background, ink text, mono data readouts, blaze-orange accent. */
 
 :root {
@@ -10,7 +10,7 @@
   --line: #d8d4c6;
   --line-strong: #b9b4a2;
 
-  --accent: #d84a1b;       /* blaze orange — major */
+  --accent: #d84a1b;       /* blaze orange - major */
   --accent-soft: #fdeae2;
   --amber: #a16207;        /* moderate */
   --amber-soft: #fdf3da;

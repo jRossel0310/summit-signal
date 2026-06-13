@@ -20,6 +20,12 @@ interface Props {
 
 const SEV_ORDER: Record<string, number> = { major: 0, moderate: 1, unknown: 2, info: 3 };
 
+const STALE_HOURS = 12;
+function checkAgeHours(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  return (Date.now() - new Date(iso).getTime()) / 3600000;
+}
+
 function ConnectorCard({ r, staleHours }: { r: ConnectorResult; staleHours: number }) {
   const n = (r.normalized || {}) as Record<string, any>;
   const label = CONNECTOR_LABELS[r.connector_name] || r.connector_name;
@@ -94,12 +100,12 @@ function ConnectorCard({ r, staleHours }: { r: ConnectorResult; staleHours: numb
         );
       }
       case "nps_alerts": {
-        if (n.applicable === false) return <div style={{ fontSize: 12.5 }}>Not applicable — no NPS unit near this point.</div>;
+        if (n.applicable === false) return <div style={{ fontSize: 12.5 }}>Not applicable - no NPS unit near this point.</div>;
         const alerts = n.alerts as any[] | undefined;
         return (
           <div className="kv">
             <span className="k">Units checked</span>
-            <span className="v">{(n.parks as any[] | undefined)?.map((p) => p.name).join(", ") || "—"}</span>
+            <span className="v">{(n.parks as any[] | undefined)?.map((p) => p.name).join(", ") || "-"}</span>
             <span className="k">Alerts</span><span className="v">{alerts?.length ?? 0}</span>
           </div>
         );
@@ -149,7 +155,7 @@ function ConnectorCard({ r, staleHours }: { r: ConnectorResult; staleHours: numb
         <span style={{ marginLeft: "auto" }}><ConnStatus status={r.status} /></span>
       </div>
       <div className="meta">
-        <span>source: {r.source_name || "—"}</span>
+        <span>source: {r.source_name || "-"}</span>
         <Freshness retrievedAt={r.retrieved_at} staleHours={staleHours} />
         {r.source_timestamp && <span title="timestamp reported by the source">source ts: {fmtTime(r.source_timestamp)}</span>}
         {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer">source link ↗</a>}
@@ -187,7 +193,7 @@ export default function ConditionDashboard({
   return (
     <div>
       <div className="section">
-        <h2 className="section-title">Condition dashboard — {trip.name}</h2>
+        <h2 className="section-title">Condition dashboard - {trip.name}</h2>
 
         <StatusBanner
           status={running ? "Check in progress…" : check?.overall_concern_status || trip.latest_concern_status}
@@ -215,14 +221,37 @@ export default function ConditionDashboard({
 
         {error && <div className="error-note">{error}</div>}
 
+        {(() => {
+          const age = checkAgeHours(trip.last_checked_at);
+          if (age === null) return (
+            <div className="error-note" style={{ background: "#f3efe7", color: "#5f5320", borderColor: "#d8cda8" }}>
+              No condition check yet. Run one for current conditions.
+            </div>
+          );
+          if (age > STALE_HOURS) return (
+            <div className="error-note" style={{ background: "#f3efe7", color: "#5f5320", borderColor: "#d8cda8" }}>
+              Conditions last checked {Math.round(age)}h ago. Re-run for current data.
+            </div>
+          );
+          return null;
+        })()}
+
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn primary" disabled={running} onClick={onRunCheck}>
             {running ? "Running…" : "Run condition check"}
           </button>
           {check && check.status === "complete" && (
-            <a className="btn ghost" style={{ textDecoration: "none" }} href={api.printReportUrl(trip.id, check.id)} target="_blank" rel="noreferrer">
-              Print report ↗
-            </a>
+            <button className="btn ghost" onClick={async () => {
+              try {
+                const html = await api.fetchReportHtml(trip.id, check.id);
+                const blob = new Blob([html], { type: "text/html" });
+                const url = URL.createObjectURL(blob);
+                window.open(url, "_blank");
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+              } catch { /* ignore report open failure */ }
+            }}>
+              Print report
+            </button>
           )}
         </div>
       </div>

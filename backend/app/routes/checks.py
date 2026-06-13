@@ -12,9 +12,20 @@ from ..schemas import (
 )
 from ..services.settings_service import get_settings
 from ..services import risk_engine
+from ..security import get_current_user
 from ..agent import summarizer
 
 router = APIRouter()
+
+
+def _owned_check(check_id: int, user, db) -> models.ConditionCheck:
+    check = db.get(models.ConditionCheck, check_id)
+    if check is None:
+        raise HTTPException(404, "Condition check not found")
+    trip = db.get(models.Trip, check.trip_id)
+    if trip is None or trip.user_id != user.id:
+        raise HTTPException(404, "Condition check not found")
+    return check
 
 
 def _detail(check: models.ConditionCheck) -> ConditionCheckDetail:
@@ -47,10 +58,9 @@ def _detail(check: models.ConditionCheck) -> ConditionCheckDetail:
 
 
 @router.get("/condition-checks/{check_id}", response_model=ConditionCheckDetail)
-def get_check(check_id: int, db: Session = Depends(get_db)):
-    check = db.get(models.ConditionCheck, check_id)
-    if not check:
-        raise HTTPException(404, "Condition check not found")
+def get_check(check_id: int, db: Session = Depends(get_db),
+              user: models.User = Depends(get_current_user)):
+    check = _owned_check(check_id, user, db)
     detail = _detail(check)
     latest = (db.query(models.AiSummary).filter_by(condition_check_id=check_id)
               .order_by(models.AiSummary.created_at.desc()).first())
@@ -63,10 +73,9 @@ def get_check(check_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/condition-checks/{check_id}/status", response_model=ConditionCheckOut)
-def get_check_status(check_id: int, db: Session = Depends(get_db)):
-    check = db.get(models.ConditionCheck, check_id)
-    if not check:
-        raise HTTPException(404, "Condition check not found")
+def get_check_status(check_id: int, db: Session = Depends(get_db),
+                     user: models.User = Depends(get_current_user)):
+    check = _owned_check(check_id, user, db)
     return ConditionCheckOut(
         id=check.id, trip_id=check.trip_id, started_at=check.started_at,
         completed_at=check.completed_at, status=check.status,
@@ -77,19 +86,19 @@ def get_check_status(check_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/condition-checks/{check_id}/results", response_model=ConditionCheckDetail)
-def get_check_results(check_id: int, db: Session = Depends(get_db)):
-    return get_check(check_id, db)
+def get_check_results(check_id: int, db: Session = Depends(get_db),
+                      user: models.User = Depends(get_current_user)):
+    return get_check(check_id, db, user)
 
 
 @router.post("/condition-checks/{check_id}/generate-summary")
-def regenerate_summary(check_id: int, db: Session = Depends(get_db)):
-    check = db.get(models.ConditionCheck, check_id)
-    if not check:
-        raise HTTPException(404, "Condition check not found")
+def regenerate_summary(check_id: int, db: Session = Depends(get_db),
+                       user: models.User = Depends(get_current_user)):
+    check = _owned_check(check_id, user, db)
     if check.status != "complete":
         raise HTTPException(409, "Condition check has not completed yet")
     trip = db.get(models.Trip, check.trip_id)
-    settings = get_settings(db)
+    settings = get_settings(db, trip.user_id)
     outputs = []
     for r in check.connector_results:
         outputs.append({

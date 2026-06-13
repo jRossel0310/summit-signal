@@ -1,5 +1,5 @@
 """Shared pytest fixtures. The `session` fixture gives each test an isolated
-in-memory SQLite session with all tables created — no app, no seeding, no
+in-memory SQLite session with all tables created; no app, no seeding, no
 network. Use it for model/cascade and service-layer tests."""
 import os
 import tempfile
@@ -8,6 +8,7 @@ import tempfile
 # conftest is imported before any test module, so this guarantees no test
 # (including ones that import the real engine/app) ever touches summit_signal.db.
 os.environ.setdefault("SUMMIT_SIGNAL_DB", os.path.join(tempfile.mkdtemp(), "summit_test.db"))
+os.environ.setdefault("SIGNUP_CODE", "test-invite-code")
 
 import pytest
 from sqlalchemy import create_engine, event
@@ -46,3 +47,13 @@ def session():
     finally:
         sess.close()
         Base.metadata.drop_all(engine)
+
+
+def signup_and_token(client, email="user@example.com", password="password123"):
+    """Sign up a fresh user via the API and return (token, user_id, headers)."""
+    r = client.post("/auth/signup", json={
+        "email": email, "password": password, "invite_code": os.environ["SIGNUP_CODE"]})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    headers = {"Authorization": f"Bearer {body['token']}"}
+    return body["token"], body["user"]["id"], headers

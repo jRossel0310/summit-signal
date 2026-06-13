@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: summitsignal-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SIGNUP_CODE
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: SUMMIT_SIGNAL_FIRMS_KEY
+        sync: false
+      - key: SUMMIT_SIGNAL_AIRNOW_KEY
+        sync: false
+      - key: SUMMIT_SIGNAL_NPS_KEY
+        sync: false
