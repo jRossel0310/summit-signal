@@ -57,6 +57,10 @@ A reusable `BottomSheet` component renders over a permanently-mounted, full-scre
 - **Full (top edge at the topbar).** Same content, maximized for reading flags,
   AI summary, and source results.
 
+Default segmented tab: **Plan** when no trip is selected; switches to
+**Conditions** when a trip is selected (selecting a trip also expands the sheet
+from peek to half). The user can switch tabs freely thereafter.
+
 Interaction: drag the grip to move freely; release snaps to the nearest point;
 tapping the grip cycles upward (peek → half → full). No heavy scrim — the map
 stays glanceable so it remains the primary surface. The search bar floats on the
