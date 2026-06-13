@@ -17,7 +17,7 @@ _ALGO = "HS256"
 TOKEN_TTL_DAYS = 7
 
 # Allow tests/dev to run without a configured secret; production sets JWT_SECRET.
-_DEV_SECRET = "dev-insecure-secret-change-me"
+_DEV_SECRET = "dev-insecure-secret-change-me-in-production-0123456789"
 
 # auto_error=False so we can return a clean 401 ourselves and support optional auth.
 _bearer = HTTPBearer(auto_error=False)

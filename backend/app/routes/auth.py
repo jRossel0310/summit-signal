@@ -1,5 +1,6 @@
 """Authentication: signup (invite-gated), login, current user."""
 from __future__ import annotations
+import hmac
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,7 +23,8 @@ def _normalize_email(email: str) -> str:
 
 @router.post("/auth/signup", response_model=TokenResponse)
 def signup(body: SignupRequest, db: Session = Depends(get_db)):
-    if body.invite_code != os.environ.get("SIGNUP_CODE", ""):
+    expected = os.environ.get("SIGNUP_CODE", "")
+    if not expected or not hmac.compare_digest(body.invite_code, expected):
         raise HTTPException(400, "Invalid invite code")
     if len(body.password) < MIN_PASSWORD_LEN:
         raise HTTPException(400, f"Password must be at least {MIN_PASSWORD_LEN} characters")
