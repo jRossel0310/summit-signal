@@ -245,7 +245,9 @@ export default function ConditionDashboard({
               try {
                 const html = await api.fetchReportHtml(trip.id, check.id);
                 const blob = new Blob([html], { type: "text/html" });
-                window.open(URL.createObjectURL(blob), "_blank");
+                const url = URL.createObjectURL(blob);
+                window.open(url, "_blank");
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
               } catch { /* ignore report open failure */ }
             }}>
               Print report

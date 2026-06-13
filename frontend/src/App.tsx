@@ -65,7 +65,11 @@ export default function App() {
 
   // ---- load per-user data when logged in ----
   useEffect(() => {
-    if (!user) { setTrips([]); setSelectedTrip(null); setCheck(null); return; }
+    if (!user) {
+      setTrips([]); setSelectedTrip(null); setCheck(null);
+      setView((v) => (v === "settings" || v === "detail" ? "dashboard" : v));
+      return;
+    }
     api.listTrips().then(setTrips).catch(() => {});
     api.getSettings().then(setSettings).catch(() => {});
   }, [user]);

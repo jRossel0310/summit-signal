@@ -81,7 +81,12 @@ export const api = {
   uploadGpx: async (tripId: number, file: File): Promise<Trip> => {
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch(`${API_BASE}/trips/${tripId}/upload-gpx`, { method: "POST", body: fd });
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/trips/${tripId}/upload-gpx`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new Error(body?.detail || `GPX upload failed (${res.status})`);

@@ -131,7 +131,9 @@ export default function TripDetail({ trip, onBack, onTripUpdated, onTripDeleted 
                 try {
                   const html = await api.fetchReportHtml(trip.id, activeCheck.id);
                   const blob = new Blob([html], { type: "text/html" });
-                  window.open(URL.createObjectURL(blob), "_blank");
+                  const url = URL.createObjectURL(blob);
+                  window.open(url, "_blank");
+                  setTimeout(() => URL.revokeObjectURL(url), 60000);
                 } catch (e) { setError((e as Error).message); }
               }}>
                 Print / export report
