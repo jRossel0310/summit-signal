@@ -84,10 +84,12 @@ function SheetPeek({
         <span className="peek-dot" style={{ background: dotColor }} />
         <span className="peek-status">{status ?? "Not yet checked"}</span>
       </div>
-      {running && liveStatus ? (
-        <div className="peek-progress">{liveStatus.connectors_completed}/{liveStatus.connectors_total} sources checked…</div>
+      {running ? (
+        <div className="peek-progress">
+          {liveStatus ? `${liveStatus.connectors_completed}/${liveStatus.connectors_total} sources checked…` : "Starting condition check…"}
+        </div>
       ) : (
-        <button className="btn primary peek-run" onClick={onRunCheck} disabled={running}>Run condition check</button>
+        <button className="btn primary peek-run" onClick={onRunCheck}>Run condition check</button>
       )}
     </div>
   );
@@ -99,6 +101,8 @@ export default function App() {
   const isPhone = useIsPhone();
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>("peek");
   const [mobileTab, setMobileTab] = useState<"conditions" | "plan">("plan");
+  // Lift the sheet from its peek rest to half when content becomes relevant.
+  const expandSheet = () => setSheetSnap((s) => (s === "peek" ? "half" : s));
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
@@ -207,7 +211,7 @@ export default function App() {
     setPointName(trip.location_name);
     setFlyTo({ lat: trip.latitude, lon: trip.longitude, zoom: 10 });
     setMobileTab("conditions");           // surface conditions on phone
-    setSheetSnap((s) => (s === "peek" ? "half" : s));
+    expandSheet();
     loadLatestCheck(trip);
   }
 
@@ -448,21 +452,23 @@ export default function App() {
             >
               <div className="sheet-segmented" role="tablist" aria-label="Sheet content">
                 <button
+                  id="tab-conditions"
                   type="button" role="tab" aria-selected={mobileTab === "conditions"}
                   className={mobileTab === "conditions" ? "active" : ""}
-                  onClick={() => { setMobileTab("conditions"); setSheetSnap((s) => (s === "peek" ? "half" : s)); }}
+                  onClick={() => { setMobileTab("conditions"); expandSheet(); }}
                 >
                   Conditions
                 </button>
                 <button
+                  id="tab-plan"
                   type="button" role="tab" aria-selected={mobileTab === "plan"}
                   className={mobileTab === "plan" ? "active" : ""}
-                  onClick={() => { setMobileTab("plan"); setSheetSnap((s) => (s === "peek" ? "half" : s)); }}
+                  onClick={() => { setMobileTab("plan"); expandSheet(); }}
                 >
                   Plan
                 </button>
               </div>
-              <div className="sheet-tabpanel" role="tabpanel">
+              <div className="sheet-tabpanel" role="tabpanel" aria-labelledby={mobileTab === "conditions" ? "tab-conditions" : "tab-plan"}>
                 {mobileTab === "conditions" ? (
                   user ? (
                     <ConditionDashboard
