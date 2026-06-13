@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./lib/api";
+import { api, API_BASE } from "./lib/api";
 import type {
   AppSettings, CheckStatus, ConditionCheckDetail, SearchResult, Trip,
 } from "./types";
@@ -230,12 +230,12 @@ export default function App() {
           <Logo />
           <div>
             <div className="brand-name">SummitSignal</div>
-            <div className="brand-sub">trip condition dashboard · local-first</div>
+            <div className="brand-sub">trip condition dashboard · multi-user</div>
           </div>
         </div>
         <div className="backend-dot" title={backendOk ? "backend connected" : "backend unreachable"}>
           <span className={`dot ${backendOk === null ? "" : backendOk ? "ok" : "bad"}`} />
-          {backendOk === false ? "backend offline" : "localhost:8000"}
+          {backendOk === false ? "backend offline" : new URL(API_BASE).host}
         </div>
         <nav className="topbar-nav">
           <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>Map</button>
