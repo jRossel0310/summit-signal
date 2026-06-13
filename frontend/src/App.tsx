@@ -10,37 +10,17 @@ import TripDetail from "./components/TripDetail";
 import SettingsView from "./components/SettingsView";
 import AuthScreen from "./components/AuthScreen";
 import PlanPanel from "./components/PlanPanel";
+import BottomSheet, { type SheetSnap } from "./components/BottomSheet";
 import { useAuth } from "./lib/auth";
+import { useIsPhone } from "./lib/useIsPhone";
 
 type View = "dashboard" | "detail" | "settings" | "auth";
-// Which panel is raised over the map on phone widths. Ignored at >=700px (CSS).
-type CompactPanel = "map" | "plan" | "conditions";
 
 const Logo = () => (
   <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden>
     <path d="M2 26 L12 8 L17 17 L21 11 L30 26 Z" fill="#d84a1b" />
     <path d="M2 26 L12 8 L17 17 L21 11 L30 26" fill="none" stroke="#fbfaf6" strokeWidth="0" />
     <circle cx="21" cy="6" r="2.4" fill="#fbfaf6" />
-  </svg>
-);
-
-// Bottom-tab glyphs (phone only). Stroke inherits currentColor.
-const MapIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden>
-    <path d="M9 4 L3 6 V20 L9 18 L15 20 L21 18 V4 L15 6 L9 4 Z" />
-    <path d="M9 4 V18 M15 6 V20" />
-  </svg>
-);
-const PlanIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M5 4 H15 L19 8 V20 H5 Z" />
-    <path d="M9 9 H15 M9 13 H15 M9 17 H13" />
-  </svg>
-);
-const ConditionsIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M3 17 L9 11 L13 15 L21 7" />
-    <path d="M21 7 V12 M21 7 H16" />
   </svg>
 );
 
@@ -57,10 +37,68 @@ function concernColor(status: string | null | undefined): string {
   }
 }
 
+function LoggedOutConditions({ onLogin }: { onLogin: () => void }) {
+  return (
+    <div className="section">
+      <h2 className="section-title">Condition dashboard</h2>
+      <div className="empty-note">Log in to run condition checks and see source results for your trips.</div>
+      <button className="btn primary" style={{ marginTop: 8 }} onClick={onLogin}>Log in / Sign up</button>
+    </div>
+  );
+}
+
+function SheetPeek({
+  loggedIn, trip, check, running, liveStatus, onRunCheck, onLogin,
+}: {
+  loggedIn: boolean;
+  trip: Trip | null;
+  check: ConditionCheckDetail | null;
+  running: boolean;
+  liveStatus: CheckStatus | null;
+  onRunCheck: () => void;
+  onLogin: () => void;
+}) {
+  if (!loggedIn) {
+    return (
+      <div className="peek-empty">
+        <div className="peek-title">Browse the map</div>
+        <div className="peek-sub">Log in to save trips and run condition checks.</div>
+        <button className="btn primary small peek-run" onClick={onLogin}>Log in / Sign up</button>
+      </div>
+    );
+  }
+  if (!trip) {
+    return (
+      <div className="peek-empty">
+        <div className="peek-title">No trip selected</div>
+        <div className="peek-sub">Search or tap the map, then save a trip in the Plan tab.</div>
+      </div>
+    );
+  }
+  const status = running ? "Check in progress" : (check?.overall_concern_status ?? trip.latest_concern_status);
+  const dotColor = running ? "var(--accent)" : concernColor(check?.overall_concern_status ?? trip.latest_concern_status);
+  return (
+    <div className="peek">
+      <div className="peek-trip">{trip.name}</div>
+      <div className="peek-risk">
+        <span className="peek-dot" style={{ background: dotColor }} />
+        <span className="peek-status">{status ?? "Not yet checked"}</span>
+      </div>
+      {running && liveStatus ? (
+        <div className="peek-progress">{liveStatus.connectors_completed}/{liveStatus.connectors_total} sources checked…</div>
+      ) : (
+        <button className="btn primary peek-run" onClick={onRunCheck} disabled={running}>Run condition check</button>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const { user, ready, logout } = useAuth();
   const [view, setView] = useState<View>("dashboard");
-  const [compactPanel, setCompactPanel] = useState<CompactPanel>("map");
+  const isPhone = useIsPhone();
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>("peek");
+  const [mobileTab, setMobileTab] = useState<"conditions" | "plan">("plan");
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
@@ -168,7 +206,8 @@ export default function App() {
     setSelectedPoint({ lat: trip.latitude, lon: trip.longitude });
     setPointName(trip.location_name);
     setFlyTo({ lat: trip.latitude, lon: trip.longitude, zoom: 10 });
-    setCompactPanel("conditions"); // surface conditions on phone; no-op visually on desktop
+    setMobileTab("conditions");           // surface conditions on phone
+    setSheetSnap((s) => (s === "peek" ? "half" : s));
     loadLatestCheck(trip);
   }
 
@@ -331,25 +370,26 @@ export default function App() {
       )}
 
       {view === "dashboard" && (
-        <>
-        <div className="main-grid" data-mobile-panel={compactPanel}>
-          <aside className="panel-left contour-bg">
-            <PlanPanel
-              loggedIn={!!user}
-              selectedPoint={selectedPoint}
-              pointName={pointName}
-              trips={trips}
-              selectedTripId={selectedTrip?.id ?? null}
-              layers={layers}
-              runningAll={runningAll}
-              onTripCreated={onTripCreated}
-              onSelectTrip={selectTrip}
-              onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
-              onRunAll={runAll}
-              onLayersChange={setLayers}
-              onLoginClick={() => setView("auth")}
-            />
-          </aside>
+        <div className="dashboard">
+          {!isPhone && (
+            <aside className="panel-left contour-bg">
+              <PlanPanel
+                loggedIn={!!user}
+                selectedPoint={selectedPoint}
+                pointName={pointName}
+                trips={trips}
+                selectedTripId={selectedTrip?.id ?? null}
+                layers={layers}
+                runningAll={runningAll}
+                onTripCreated={onTripCreated}
+                onSelectTrip={selectTrip}
+                onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
+                onRunAll={runAll}
+                onLayersChange={setLayers}
+                onLoginClick={() => setView("auth")}
+              />
+            </aside>
+          )}
 
           <main className="panel-center">
             <MapView
@@ -362,79 +402,105 @@ export default function App() {
               fireDetections={fireDetections}
               perimeterGeojson={perimeterGeojson}
               onSelectPoint={onMapSelect}
-              onSelectTrip={(id) => {
-                const t = trips.find((x) => x.id === id);
-                if (t) selectTrip(t);
-              }}
+              onSelectTrip={(id) => { const t = trips.find((x) => x.id === id); if (t) selectTrip(t); }}
             />
             <div className="map-overlay-tl">
               <SearchBar onResult={onSearchResult} />
             </div>
           </main>
 
-          <aside className="panel-right">
-            <button className="sheet-grip" onClick={() => setCompactPanel("map")} aria-label="Close panel">
-              <span className="grip-bar" /><span className="grip-label">Conditions</span>
-            </button>
-            {user ? (
-              <ConditionDashboard
-                trip={selectedTrip}
-                check={check}
-                liveStatus={liveStatus}
-                running={running}
-                loadingCheck={loadingCheck}
-                error={dashError}
-                staleHours={settings?.stale_hours ?? 24}
-                onRunCheck={runCheck}
-                onRegenerateSummary={regenerateSummary}
-                regenBusy={regenBusy}
-              />
-            ) : (
-              <div className="section">
-                <h2 className="section-title">Condition dashboard</h2>
-                <div className="empty-note">Log in to run condition checks and see source results for your trips.</div>
-                <button className="btn primary" style={{ marginTop: 8 }} onClick={() => setView("auth")}>Log in / Sign up</button>
-              </div>
-            )}
-          </aside>
-        </div>
-
-        <nav className="mobile-tabbar" role="tablist" aria-label="Dashboard panels">
-          <button
-            role="tab"
-            className={compactPanel === "map" ? "active" : ""}
-            aria-selected={compactPanel === "map"}
-            onClick={() => setCompactPanel("map")}
-          >
-            <MapIcon /><span>Map</span>
-          </button>
-          <button
-            role="tab"
-            className={compactPanel === "plan" ? "active" : ""}
-            aria-selected={compactPanel === "plan"}
-            onClick={() => setCompactPanel("plan")}
-          >
-            <PlanIcon /><span>Plan</span>
-          </button>
-          <button
-            role="tab"
-            className={compactPanel === "conditions" ? "active" : ""}
-            aria-selected={compactPanel === "conditions"}
-            onClick={() => setCompactPanel("conditions")}
-          >
-            <span className="tab-icon-wrap">
-              <ConditionsIcon />
-              {(running || check || selectedTrip?.latest_concern_status) && (
-                <span
-                  className={`tab-status-dot${running ? " pulsing" : ""}`}
-                  style={{ background: running ? "var(--accent)" : concernColor(check?.overall_concern_status ?? selectedTrip?.latest_concern_status) }}
+          {!isPhone && (
+            <aside className="panel-right">
+              {user ? (
+                <ConditionDashboard
+                  trip={selectedTrip}
+                  check={check}
+                  liveStatus={liveStatus}
+                  running={running}
+                  loadingCheck={loadingCheck}
+                  error={dashError}
+                  staleHours={settings?.stale_hours ?? 24}
+                  onRunCheck={runCheck}
+                  onRegenerateSummary={regenerateSummary}
+                  regenBusy={regenBusy}
                 />
+              ) : (
+                <LoggedOutConditions onLogin={() => setView("auth")} />
               )}
-            </span>
-            <span>Conditions</span>
-          </button>
-        </nav>
-        </>
+            </aside>
+          )}
+
+          {isPhone && (
+            <BottomSheet
+              snap={sheetSnap}
+              onSnapChange={setSheetSnap}
+              peek={
+                <SheetPeek
+                  loggedIn={!!user}
+                  trip={selectedTrip}
+                  check={check}
+                  running={running}
+                  liveStatus={liveStatus}
+                  onRunCheck={runCheck}
+                  onLogin={() => setView("auth")}
+                />
+              }
+            >
+              <div className="sheet-segmented" role="tablist" aria-label="Sheet content">
+                <button
+                  type="button" role="tab" aria-selected={mobileTab === "conditions"}
+                  className={mobileTab === "conditions" ? "active" : ""}
+                  onClick={() => { setMobileTab("conditions"); setSheetSnap((s) => (s === "peek" ? "half" : s)); }}
+                >
+                  Conditions
+                </button>
+                <button
+                  type="button" role="tab" aria-selected={mobileTab === "plan"}
+                  className={mobileTab === "plan" ? "active" : ""}
+                  onClick={() => { setMobileTab("plan"); setSheetSnap((s) => (s === "peek" ? "half" : s)); }}
+                >
+                  Plan
+                </button>
+              </div>
+              <div className="sheet-tabpanel" role="tabpanel">
+                {mobileTab === "conditions" ? (
+                  user ? (
+                    <ConditionDashboard
+                      trip={selectedTrip}
+                      check={check}
+                      liveStatus={liveStatus}
+                      running={running}
+                      loadingCheck={loadingCheck}
+                      error={dashError}
+                      staleHours={settings?.stale_hours ?? 24}
+                      onRunCheck={runCheck}
+                      onRegenerateSummary={regenerateSummary}
+                      regenBusy={regenBusy}
+                    />
+                  ) : (
+                    <LoggedOutConditions onLogin={() => setView("auth")} />
+                  )
+                ) : (
+                  <PlanPanel
+                    loggedIn={!!user}
+                    selectedPoint={selectedPoint}
+                    pointName={pointName}
+                    trips={trips}
+                    selectedTripId={selectedTrip?.id ?? null}
+                    layers={layers}
+                    runningAll={runningAll}
+                    onTripCreated={onTripCreated}
+                    onSelectTrip={selectTrip}
+                    onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
+                    onRunAll={runAll}
+                    onLayersChange={setLayers}
+                    onLoginClick={() => setView("auth")}
+                  />
+                )}
+              </div>
+            </BottomSheet>
+          )}
+        </div>
       )}
     </div>
   );
