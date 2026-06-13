@@ -5,15 +5,16 @@ import type {
 } from "./types";
 import MapView, { type FireDetection, type LayerState } from "./components/MapView";
 import SearchBar from "./components/SearchBar";
-import TripForm from "./components/TripForm";
-import SavedTrips from "./components/SavedTrips";
 import ConditionDashboard from "./components/ConditionDashboard";
 import TripDetail from "./components/TripDetail";
 import SettingsView from "./components/SettingsView";
 import AuthScreen from "./components/AuthScreen";
+import PlanPanel from "./components/PlanPanel";
 import { useAuth } from "./lib/auth";
 
 type View = "dashboard" | "detail" | "settings" | "auth";
+// Which panel is raised over the map on phone widths. Ignored at >=700px (CSS).
+type CompactPanel = "map" | "plan" | "conditions";
 
 const Logo = () => (
   <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden>
@@ -23,9 +24,43 @@ const Logo = () => (
   </svg>
 );
 
+// Bottom-tab glyphs (phone only). Stroke inherits currentColor.
+const MapIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden>
+    <path d="M9 4 L3 6 V20 L9 18 L15 20 L21 18 V4 L15 6 L9 4 Z" />
+    <path d="M9 4 V18 M15 6 V20" />
+  </svg>
+);
+const PlanIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M5 4 H15 L19 8 V20 H5 Z" />
+    <path d="M9 9 H15 M9 13 H15 M9 17 H13" />
+  </svg>
+);
+const ConditionsIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M3 17 L9 11 L13 15 L21 7" />
+    <path d="M21 7 V12 M21 7 H16" />
+  </svg>
+);
+
+// Concern status -> dot color, used on the mobile Conditions tab so risk is
+// visible without opening the sheet.
+function concernColor(status: string | null | undefined): string {
+  switch (status) {
+    case "Major concerns found": return "var(--accent)";
+    case "Some concerns found": return "var(--amber)";
+    case "No major concerns found": return "var(--teal)";
+    case "Source check failed": return "var(--red)";
+    case "Data incomplete": return "var(--gray)";
+    default: return "var(--line-strong)";
+  }
+}
+
 export default function App() {
   const { user, ready, logout } = useAuth();
   const [view, setView] = useState<View>("dashboard");
+  const [compactPanel, setCompactPanel] = useState<CompactPanel>("map");
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
@@ -133,6 +168,7 @@ export default function App() {
     setSelectedPoint({ lat: trip.latitude, lon: trip.longitude });
     setPointName(trip.location_name);
     setFlyTo({ lat: trip.latitude, lon: trip.longitude, zoom: 10 });
+    setCompactPanel("conditions"); // surface conditions on phone; no-op visually on desktop
     loadLatestCheck(trip);
   }
 
@@ -235,13 +271,18 @@ export default function App() {
         </div>
         <div className="backend-dot" title={backendOk ? "backend connected" : "backend unreachable"}>
           <span className={`dot ${backendOk === null ? "" : backendOk ? "ok" : "bad"}`} />
-          {backendOk === false ? "backend offline" : new URL(API_BASE).host}
+          <span className="backend-host">{backendOk === false ? "backend offline" : new URL(API_BASE).host}</span>
         </div>
         <nav className="topbar-nav">
-          <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>Map</button>
+          <button
+            className={`${view === "dashboard" ? "active hide-on-mobile" : ""}`}
+            onClick={() => setView("dashboard")}
+          >
+            {view === "dashboard" ? "Map" : "← Map"}
+          </button>
           {user && <button className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}>Settings</button>}
           {user
-            ? <button onClick={() => { logout(); setView("dashboard"); }}>Log out ({user.email})</button>
+            ? <button onClick={() => { logout(); setView("dashboard"); }}>Log out<span className="nav-email"> ({user.email})</span></button>
             : <button onClick={() => setView("auth")}>Log in</button>}
         </nav>
       </header>
@@ -290,66 +331,24 @@ export default function App() {
       )}
 
       {view === "dashboard" && (
-        <div className="main-grid">
+        <>
+        <div className="main-grid" data-mobile-panel={compactPanel}>
           <aside className="panel-left contour-bg">
-            {user ? (
-              <>
-                <div className="section">
-                  <h2 className="section-title">New trip</h2>
-                  <TripForm selectedPoint={selectedPoint} locationName={pointName} onCreated={onTripCreated} />
-                </div>
-                <div className="section">
-                  <h2 className="section-title">Saved trips ({trips.length})</h2>
-                  <SavedTrips
-                    trips={trips}
-                    selectedTripId={selectedTrip?.id ?? null}
-                    onSelect={selectTrip}
-                    onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
-                    onRunAll={runAll}
-                    runningAll={runningAll}
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="section">
-                <div className="empty-note">Log in to save trips and run condition checks. You can browse and search the map without an account.</div>
-                <button className="btn primary" style={{ marginTop: 8 }} onClick={() => setView("auth")}>Log in / Sign up</button>
-              </div>
-            )}
-            <div className="section">
-              <h2 className="section-title">Map layers</h2>
-              <div className="layer-toggles">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={layers.basemap === "topo"}
-                    onChange={(e) => setLayers({ ...layers, basemap: e.target.checked ? "topo" : "street" })}
-                  />
-                  Topo basemap (off = street)
-                </label>
-                {([
-                  ["selectedPoint", "Selected trip point"],
-                  ["gpxRoute", "GPX route"],
-                  ["fires", "Active fire detections"],
-                  ["perimeters", "Fire perimeters"],
-                  ["savedTrips", "Saved trip markers"],
-                ] as [keyof LayerState, string][]).map(([key, label]) => (
-                  <label key={key}>
-                    <input
-                      type="checkbox"
-                      checked={layers[key] as boolean}
-                      onChange={(e) => setLayers({ ...layers, [key]: e.target.checked })}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 8 }}>
-                Fire detections and perimeters appear after a condition check returns data for the
-                selected trip. AQI, NWS alert areas, and avalanche regions are shown in the dashboard
-                panel with source links.
-              </div>
-            </div>
+            <PlanPanel
+              loggedIn={!!user}
+              selectedPoint={selectedPoint}
+              pointName={pointName}
+              trips={trips}
+              selectedTripId={selectedTrip?.id ?? null}
+              layers={layers}
+              runningAll={runningAll}
+              onTripCreated={onTripCreated}
+              onSelectTrip={selectTrip}
+              onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
+              onRunAll={runAll}
+              onLayersChange={setLayers}
+              onLoginClick={() => setView("auth")}
+            />
           </aside>
 
           <main className="panel-center">
@@ -374,6 +373,9 @@ export default function App() {
           </main>
 
           <aside className="panel-right">
+            <button className="sheet-grip" onClick={() => setCompactPanel("map")} aria-label="Close panel">
+              <span className="grip-bar" /><span className="grip-label">Conditions</span>
+            </button>
             {user ? (
               <ConditionDashboard
                 trip={selectedTrip}
@@ -396,6 +398,43 @@ export default function App() {
             )}
           </aside>
         </div>
+
+        <nav className="mobile-tabbar" role="tablist" aria-label="Dashboard panels">
+          <button
+            role="tab"
+            className={compactPanel === "map" ? "active" : ""}
+            aria-selected={compactPanel === "map"}
+            onClick={() => setCompactPanel("map")}
+          >
+            <MapIcon /><span>Map</span>
+          </button>
+          <button
+            role="tab"
+            className={compactPanel === "plan" ? "active" : ""}
+            aria-selected={compactPanel === "plan"}
+            onClick={() => setCompactPanel("plan")}
+          >
+            <PlanIcon /><span>Plan</span>
+          </button>
+          <button
+            role="tab"
+            className={compactPanel === "conditions" ? "active" : ""}
+            aria-selected={compactPanel === "conditions"}
+            onClick={() => setCompactPanel("conditions")}
+          >
+            <span className="tab-icon-wrap">
+              <ConditionsIcon />
+              {(running || check || selectedTrip?.latest_concern_status) && (
+                <span
+                  className={`tab-status-dot${running ? " pulsing" : ""}`}
+                  style={{ background: running ? "var(--accent)" : concernColor(check?.overall_concern_status ?? selectedTrip?.latest_concern_status) }}
+                />
+              )}
+            </span>
+            <span>Conditions</span>
+          </button>
+        </nav>
+        </>
       )}
     </div>
   );
