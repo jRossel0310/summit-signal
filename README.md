@@ -140,7 +140,7 @@ See `.env.example` at the repo root for the full list.
 
 ### Database - Neon (Postgres)
 
-Create a Neon project, copy the connection string, and set it as `DATABASE_URL` on Render. The backend runs SQLAlchemy migrations on startup.
+Create a Neon project, copy the connection string, and set it as `DATABASE_URL` on Render. On startup the backend calls `create_all`, which creates any missing tables. There is no Alembic migration system: `create_all` does not ALTER existing tables, so after a schema change you must drop and recreate the database (for local development, delete `backend/summit_signal.db`; for a fresh Postgres deploy this is a non-issue since the tables are created clean).
 
 ## Notes & limitations
 
