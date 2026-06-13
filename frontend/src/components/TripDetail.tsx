@@ -127,9 +127,15 @@ export default function TripDetail({ trip, onBack, onTripUpdated, onTripDeleted 
           <h2 className="section-title">Actions</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {activeCheck && (
-              <a className="btn full" style={{ textDecoration: "none" }} href={api.printReportUrl(trip.id, activeCheck.id)} target="_blank" rel="noreferrer">
-                Print / export report ↗
-              </a>
+              <button className="btn full" onClick={async () => {
+                try {
+                  const html = await api.fetchReportHtml(trip.id, activeCheck.id);
+                  const blob = new Blob([html], { type: "text/html" });
+                  window.open(URL.createObjectURL(blob), "_blank");
+                } catch (e) { setError((e as Error).message); }
+              }}>
+                Print / export report
+              </button>
             )}
             <button className="btn ghost full" onClick={deleteTrip} style={{ color: "var(--red)", borderColor: "var(--red)" }}>
               Delete trip

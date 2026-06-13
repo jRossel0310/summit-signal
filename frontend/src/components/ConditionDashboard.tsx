@@ -20,6 +20,12 @@ interface Props {
 
 const SEV_ORDER: Record<string, number> = { major: 0, moderate: 1, unknown: 2, info: 3 };
 
+const STALE_HOURS = 12;
+function checkAgeHours(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  return (Date.now() - new Date(iso).getTime()) / 3600000;
+}
+
 function ConnectorCard({ r, staleHours }: { r: ConnectorResult; staleHours: number }) {
   const n = (r.normalized || {}) as Record<string, any>;
   const label = CONNECTOR_LABELS[r.connector_name] || r.connector_name;
@@ -215,14 +221,35 @@ export default function ConditionDashboard({
 
         {error && <div className="error-note">{error}</div>}
 
+        {(() => {
+          const age = checkAgeHours(trip.last_checked_at);
+          if (age === null) return (
+            <div className="error-note" style={{ background: "#f3efe7", color: "#5f5320", borderColor: "#d8cda8" }}>
+              No condition check yet. Run one for current conditions.
+            </div>
+          );
+          if (age > STALE_HOURS) return (
+            <div className="error-note" style={{ background: "#f3efe7", color: "#5f5320", borderColor: "#d8cda8" }}>
+              Conditions last checked {Math.round(age)}h ago. Re-run for current data.
+            </div>
+          );
+          return null;
+        })()}
+
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn primary" disabled={running} onClick={onRunCheck}>
             {running ? "Running…" : "Run condition check"}
           </button>
           {check && check.status === "complete" && (
-            <a className="btn ghost" style={{ textDecoration: "none" }} href={api.printReportUrl(trip.id, check.id)} target="_blank" rel="noreferrer">
-              Print report ↗
-            </a>
+            <button className="btn ghost" onClick={async () => {
+              try {
+                const html = await api.fetchReportHtml(trip.id, check.id);
+                const blob = new Blob([html], { type: "text/html" });
+                window.open(URL.createObjectURL(blob), "_blank");
+              } catch { /* ignore report open failure */ }
+            }}>
+              Print report
+            </button>
           )}
         </div>
       </div>

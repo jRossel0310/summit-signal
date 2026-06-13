@@ -37,6 +37,11 @@ export default function SavedTrips({ trips, selectedTripId, onSelect, onOpenDeta
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <span style={{ width: 9, height: 9, borderRadius: "50%", background: statusDot(t.latest_concern_status), flexShrink: 0 }} title={t.latest_concern_status || "not yet checked"} />
             <span className="t-name">{t.name}</span>
+            {(() => {
+              const iso = t.last_checked_at;
+              const stale = !iso || (Date.now() - new Date(iso).getTime()) / 3600000 > 12;
+              return stale ? <span title="No recent check (>12h)" style={{ color: "#b3261e", marginLeft: 6 }}>●</span> : null;
+            })()}
           </div>
           <div className="t-meta">
             {t.start_date} → {t.end_date} · {TRIP_TYPE_LABELS[t.trip_type]}

@@ -1,5 +1,10 @@
 // Types mirroring the FastAPI backend schemas.
 
+export interface User {
+  id: number;
+  email: string;
+}
+
 export type TripType = "general" | "backpacking" | "mountaineering";
 
 export interface ElevationBands {
@@ -125,16 +130,10 @@ export interface AppSettings {
   cold_low_f: number;
   stale_hours: number;
   connectors_enabled: Record<string, boolean>;
-  ollama_enabled: boolean;
-  ollama_url: string;
-  ollama_model: string;
-  schedule_hours: number;
   api_keys_present: Record<string, boolean>;
 }
 
-export interface SettingsUpdate extends Partial<Omit<AppSettings, "api_keys_present">> {
-  api_keys?: Record<string, string>;
-}
+export interface SettingsUpdate extends Partial<Omit<AppSettings, "api_keys_present">> {}
 
 export const CONNECTOR_LABELS: Record<string, string> = {
   nws_weather: "NWS Weather",
