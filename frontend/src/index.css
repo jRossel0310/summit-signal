@@ -266,6 +266,11 @@ a { color: var(--teal); }
 .btn.ghost:hover { background: var(--panel-2); }
 .btn.small { padding: 5px 10px; font-size: 10.5px; }
 .btn.full { width: 100%; }
+.dash-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.dash-actions .btn { flex: 1 1 auto; }
+@media (min-width: 700px) { .dash-actions .btn { flex: 0 0 auto; } }
+/* comfortable tap area for secondary source links in dense meta/flag rows */
+.conn-row .meta a, .f-src a { display: inline-flex; align-items: center; min-height: 34px; }
 
 /* ---------- Saved trips ---------- */
 .trip-item {
@@ -324,9 +329,14 @@ a { color: var(--teal); }
 .conn-row .body { font-size: 12.5px; margin-top: 6px; color: var(--ink); }
 .conn-row .err { font-size: 12px; color: var(--red); margin-top: 5px; font-family: var(--mono); }
 
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 12.5px; }
-.kv .k { font-family: var(--mono); font-size: 10.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em; align-self: baseline; }
+.kv { display: grid; grid-template-columns: 1fr; gap: 1px 12px; font-size: 12.5px; }
+.kv .k { font-family: var(--mono); font-size: 10.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 7px; }
+.kv .k:first-child { margin-top: 0; }
 .kv .v { font-family: var(--mono); font-size: 12px; }
+@media (min-width: 700px) {
+  .kv { grid-template-columns: auto 1fr; gap: 2px 12px; }
+  .kv .k { margin-top: 0; align-self: baseline; }
+}
 
 /* ---------- Flags ---------- */
 .flag-row { display: flex; gap: 9px; align-items: flex-start; padding: 8px 0; border-bottom: 1px dashed var(--line); }
