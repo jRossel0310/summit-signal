@@ -458,3 +458,25 @@ a { color: var(--teal); }
 @media (min-width: 1100px) {
   .detail-page { grid-template-columns: 1fr 460px; }
 }
+
+/* ---------- Interaction polish ---------- */
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--teal); outline-offset: 1px;
+}
+.btn:active { transform: translateY(1px); }
+.trip-item:active { border-color: var(--ink-soft); }
+.sheet-segmented button:active { transform: translateY(1px); }
+
+/* subtle contour motif on the sheet header, echoing the desktop .contour-bg */
+.sheet-grip, .sheet-peek {
+  background-image: repeating-radial-gradient(
+    ellipse 360px 180px at 80% -40%,
+    transparent 0px, transparent 26px,
+    rgba(31, 36, 31, 0.04) 26px, rgba(31, 36, 31, 0.04) 27px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-sheet { transition: none; }
+  .btn:active, .sheet-segmented button:active { transform: none; }
+}
