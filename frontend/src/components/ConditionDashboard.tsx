@@ -236,7 +236,7 @@ export default function ConditionDashboard({
           return null;
         })()}
 
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="dash-actions">
           <button className="btn primary" disabled={running} onClick={onRunCheck}>
             {running ? "Running…" : "Run condition check"}
           </button>

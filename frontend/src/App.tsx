@@ -5,13 +5,14 @@ import type {
 } from "./types";
 import MapView, { type FireDetection, type LayerState } from "./components/MapView";
 import SearchBar from "./components/SearchBar";
-import TripForm from "./components/TripForm";
-import SavedTrips from "./components/SavedTrips";
 import ConditionDashboard from "./components/ConditionDashboard";
 import TripDetail from "./components/TripDetail";
 import SettingsView from "./components/SettingsView";
 import AuthScreen from "./components/AuthScreen";
+import PlanPanel from "./components/PlanPanel";
+import BottomSheet, { type SheetSnap } from "./components/BottomSheet";
 import { useAuth } from "./lib/auth";
+import { useIsPhone } from "./lib/useIsPhone";
 
 type View = "dashboard" | "detail" | "settings" | "auth";
 
@@ -23,9 +24,85 @@ const Logo = () => (
   </svg>
 );
 
+// Concern status -> dot color, used on the mobile Conditions tab so risk is
+// visible without opening the sheet.
+function concernColor(status: string | null | undefined): string {
+  switch (status) {
+    case "Major concerns found": return "var(--accent)";
+    case "Some concerns found": return "var(--amber)";
+    case "No major concerns found": return "var(--teal)";
+    case "Source check failed": return "var(--red)";
+    case "Data incomplete": return "var(--gray)";
+    default: return "var(--line-strong)";
+  }
+}
+
+function LoggedOutConditions({ onLogin }: { onLogin: () => void }) {
+  return (
+    <div className="section">
+      <h2 className="section-title">Condition dashboard</h2>
+      <div className="empty-note">Log in to run condition checks and see source results for your trips.</div>
+      <button className="btn primary" style={{ marginTop: 8 }} onClick={onLogin}>Log in / Sign up</button>
+    </div>
+  );
+}
+
+function SheetPeek({
+  loggedIn, trip, check, running, liveStatus, onRunCheck, onLogin,
+}: {
+  loggedIn: boolean;
+  trip: Trip | null;
+  check: ConditionCheckDetail | null;
+  running: boolean;
+  liveStatus: CheckStatus | null;
+  onRunCheck: () => void;
+  onLogin: () => void;
+}) {
+  if (!loggedIn) {
+    return (
+      <div className="peek-empty">
+        <div className="peek-title">Browse the map</div>
+        <div className="peek-sub">Log in to save trips and run condition checks.</div>
+        <button className="btn primary small peek-run" onClick={onLogin}>Log in / Sign up</button>
+      </div>
+    );
+  }
+  if (!trip) {
+    return (
+      <div className="peek-empty">
+        <div className="peek-title">No trip selected</div>
+        <div className="peek-sub">Search or tap the map, then save a trip in the Plan tab.</div>
+      </div>
+    );
+  }
+  const status = running ? "Check in progress" : (check?.overall_concern_status ?? trip.latest_concern_status);
+  const dotColor = running ? "var(--accent)" : concernColor(check?.overall_concern_status ?? trip.latest_concern_status);
+  return (
+    <div className="peek">
+      <div className="peek-trip">{trip.name}</div>
+      <div className="peek-risk">
+        <span className="peek-dot" style={{ background: dotColor }} />
+        <span className="peek-status">{status ?? "Not yet checked"}</span>
+      </div>
+      {running ? (
+        <div className="peek-progress">
+          {liveStatus ? `${liveStatus.connectors_completed}/${liveStatus.connectors_total} sources checked…` : "Starting condition check…"}
+        </div>
+      ) : (
+        <button className="btn primary peek-run" onClick={onRunCheck}>Run condition check</button>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const { user, ready, logout } = useAuth();
   const [view, setView] = useState<View>("dashboard");
+  const isPhone = useIsPhone();
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>("peek");
+  const [mobileTab, setMobileTab] = useState<"conditions" | "plan">("plan");
+  // Lift the sheet from its peek rest to half when content becomes relevant.
+  const expandSheet = () => setSheetSnap((s) => (s === "peek" ? "half" : s));
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
@@ -133,6 +210,8 @@ export default function App() {
     setSelectedPoint({ lat: trip.latitude, lon: trip.longitude });
     setPointName(trip.location_name);
     setFlyTo({ lat: trip.latitude, lon: trip.longitude, zoom: 10 });
+    setMobileTab("conditions");           // surface conditions on phone
+    expandSheet();
     loadLatestCheck(trip);
   }
 
@@ -235,13 +314,18 @@ export default function App() {
         </div>
         <div className="backend-dot" title={backendOk ? "backend connected" : "backend unreachable"}>
           <span className={`dot ${backendOk === null ? "" : backendOk ? "ok" : "bad"}`} />
-          {backendOk === false ? "backend offline" : new URL(API_BASE).host}
+          <span className="backend-host">{backendOk === false ? "backend offline" : new URL(API_BASE).host}</span>
         </div>
         <nav className="topbar-nav">
-          <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>Map</button>
+          <button
+            className={`${view === "dashboard" ? "active hide-on-mobile" : ""}`}
+            onClick={() => setView("dashboard")}
+          >
+            {view === "dashboard" ? "Map" : "← Map"}
+          </button>
           {user && <button className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}>Settings</button>}
           {user
-            ? <button onClick={() => { logout(); setView("dashboard"); }}>Log out ({user.email})</button>
+            ? <button onClick={() => { logout(); setView("dashboard"); }}>Log out<span className="nav-email"> ({user.email})</span></button>
             : <button onClick={() => setView("auth")}>Log in</button>}
         </nav>
       </header>
@@ -290,67 +374,26 @@ export default function App() {
       )}
 
       {view === "dashboard" && (
-        <div className="main-grid">
-          <aside className="panel-left contour-bg">
-            {user ? (
-              <>
-                <div className="section">
-                  <h2 className="section-title">New trip</h2>
-                  <TripForm selectedPoint={selectedPoint} locationName={pointName} onCreated={onTripCreated} />
-                </div>
-                <div className="section">
-                  <h2 className="section-title">Saved trips ({trips.length})</h2>
-                  <SavedTrips
-                    trips={trips}
-                    selectedTripId={selectedTrip?.id ?? null}
-                    onSelect={selectTrip}
-                    onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
-                    onRunAll={runAll}
-                    runningAll={runningAll}
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="section">
-                <div className="empty-note">Log in to save trips and run condition checks. You can browse and search the map without an account.</div>
-                <button className="btn primary" style={{ marginTop: 8 }} onClick={() => setView("auth")}>Log in / Sign up</button>
-              </div>
-            )}
-            <div className="section">
-              <h2 className="section-title">Map layers</h2>
-              <div className="layer-toggles">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={layers.basemap === "topo"}
-                    onChange={(e) => setLayers({ ...layers, basemap: e.target.checked ? "topo" : "street" })}
-                  />
-                  Topo basemap (off = street)
-                </label>
-                {([
-                  ["selectedPoint", "Selected trip point"],
-                  ["gpxRoute", "GPX route"],
-                  ["fires", "Active fire detections"],
-                  ["perimeters", "Fire perimeters"],
-                  ["savedTrips", "Saved trip markers"],
-                ] as [keyof LayerState, string][]).map(([key, label]) => (
-                  <label key={key}>
-                    <input
-                      type="checkbox"
-                      checked={layers[key] as boolean}
-                      onChange={(e) => setLayers({ ...layers, [key]: e.target.checked })}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 8 }}>
-                Fire detections and perimeters appear after a condition check returns data for the
-                selected trip. AQI, NWS alert areas, and avalanche regions are shown in the dashboard
-                panel with source links.
-              </div>
-            </div>
-          </aside>
+        <div className="dashboard">
+          {!isPhone && (
+            <aside className="panel-left contour-bg">
+              <PlanPanel
+                loggedIn={!!user}
+                selectedPoint={selectedPoint}
+                pointName={pointName}
+                trips={trips}
+                selectedTripId={selectedTrip?.id ?? null}
+                layers={layers}
+                runningAll={runningAll}
+                onTripCreated={onTripCreated}
+                onSelectTrip={selectTrip}
+                onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
+                onRunAll={runAll}
+                onLayersChange={setLayers}
+                onLoginClick={() => setView("auth")}
+              />
+            </aside>
+          )}
 
           <main className="panel-center">
             <MapView
@@ -363,38 +406,106 @@ export default function App() {
               fireDetections={fireDetections}
               perimeterGeojson={perimeterGeojson}
               onSelectPoint={onMapSelect}
-              onSelectTrip={(id) => {
-                const t = trips.find((x) => x.id === id);
-                if (t) selectTrip(t);
-              }}
+              onSelectTrip={(id) => { const t = trips.find((x) => x.id === id); if (t) selectTrip(t); }}
             />
             <div className="map-overlay-tl">
               <SearchBar onResult={onSearchResult} />
             </div>
           </main>
 
-          <aside className="panel-right">
-            {user ? (
-              <ConditionDashboard
-                trip={selectedTrip}
-                check={check}
-                liveStatus={liveStatus}
-                running={running}
-                loadingCheck={loadingCheck}
-                error={dashError}
-                staleHours={settings?.stale_hours ?? 24}
-                onRunCheck={runCheck}
-                onRegenerateSummary={regenerateSummary}
-                regenBusy={regenBusy}
-              />
-            ) : (
-              <div className="section">
-                <h2 className="section-title">Condition dashboard</h2>
-                <div className="empty-note">Log in to run condition checks and see source results for your trips.</div>
-                <button className="btn primary" style={{ marginTop: 8 }} onClick={() => setView("auth")}>Log in / Sign up</button>
+          {!isPhone && (
+            <aside className="panel-right">
+              {user ? (
+                <ConditionDashboard
+                  trip={selectedTrip}
+                  check={check}
+                  liveStatus={liveStatus}
+                  running={running}
+                  loadingCheck={loadingCheck}
+                  error={dashError}
+                  staleHours={settings?.stale_hours ?? 24}
+                  onRunCheck={runCheck}
+                  onRegenerateSummary={regenerateSummary}
+                  regenBusy={regenBusy}
+                />
+              ) : (
+                <LoggedOutConditions onLogin={() => setView("auth")} />
+              )}
+            </aside>
+          )}
+
+          {isPhone && (
+            <BottomSheet
+              snap={sheetSnap}
+              onSnapChange={setSheetSnap}
+              peek={
+                <SheetPeek
+                  loggedIn={!!user}
+                  trip={selectedTrip}
+                  check={check}
+                  running={running}
+                  liveStatus={liveStatus}
+                  onRunCheck={runCheck}
+                  onLogin={() => setView("auth")}
+                />
+              }
+            >
+              <div className="sheet-segmented" role="tablist" aria-label="Sheet content">
+                <button
+                  id="tab-conditions"
+                  type="button" role="tab" aria-selected={mobileTab === "conditions"}
+                  className={mobileTab === "conditions" ? "active" : ""}
+                  onClick={() => { setMobileTab("conditions"); expandSheet(); }}
+                >
+                  Conditions
+                </button>
+                <button
+                  id="tab-plan"
+                  type="button" role="tab" aria-selected={mobileTab === "plan"}
+                  className={mobileTab === "plan" ? "active" : ""}
+                  onClick={() => { setMobileTab("plan"); expandSheet(); }}
+                >
+                  Plan
+                </button>
               </div>
-            )}
-          </aside>
+              <div className="sheet-tabpanel" role="tabpanel" aria-labelledby={mobileTab === "conditions" ? "tab-conditions" : "tab-plan"}>
+                {mobileTab === "conditions" ? (
+                  user ? (
+                    <ConditionDashboard
+                      trip={selectedTrip}
+                      check={check}
+                      liveStatus={liveStatus}
+                      running={running}
+                      loadingCheck={loadingCheck}
+                      error={dashError}
+                      staleHours={settings?.stale_hours ?? 24}
+                      onRunCheck={runCheck}
+                      onRegenerateSummary={regenerateSummary}
+                      regenBusy={regenBusy}
+                    />
+                  ) : (
+                    <LoggedOutConditions onLogin={() => setView("auth")} />
+                  )
+                ) : (
+                  <PlanPanel
+                    loggedIn={!!user}
+                    selectedPoint={selectedPoint}
+                    pointName={pointName}
+                    trips={trips}
+                    selectedTripId={selectedTrip?.id ?? null}
+                    layers={layers}
+                    runningAll={runningAll}
+                    onTripCreated={onTripCreated}
+                    onSelectTrip={selectTrip}
+                    onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
+                    onRunAll={runAll}
+                    onLayersChange={setLayers}
+                    onLoginClick={() => setView("auth")}
+                  />
+                )}
+              </div>
+            </BottomSheet>
+          )}
         </div>
       )}
     </div>
