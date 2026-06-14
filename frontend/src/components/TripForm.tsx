@@ -110,7 +110,7 @@ export default function TripForm({ selectedPoint, locationName, onCreated }: Pro
       </div>
       <div className="field">
         <label>Elevation bands (optional, ft)</label>
-        <div className="field-row">
+        <div className="field-row elevation">
           <input placeholder="Trailhead" inputMode="numeric" value={trailheadFt} onChange={(e) => setTrailheadFt(e.target.value.replace(/[^\d]/g, ""))} />
           <input placeholder="Mid-route" inputMode="numeric" value={midFt} onChange={(e) => setMidFt(e.target.value.replace(/[^\d]/g, ""))} />
           <input placeholder="High point" inputMode="numeric" value={highFt} onChange={(e) => setHighFt(e.target.value.replace(/[^\d]/g, ""))} />

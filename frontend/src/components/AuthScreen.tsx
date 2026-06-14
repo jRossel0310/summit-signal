@@ -24,7 +24,7 @@ export default function AuthScreen() {
   }
 
   return (
-    <div className="auth-screen" style={{ maxWidth: 360, margin: "8vh auto", padding: 24 }}>
+    <div className="auth-screen">
       <h1 style={{ marginBottom: 4 }}>SummitSignal</h1>
       <p style={{ color: "var(--ink-soft)", marginTop: 0 }}>
         {mode === "login" ? "Log in to see your trips." : "Create an account (invite code required)."}
