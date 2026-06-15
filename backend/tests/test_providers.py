@@ -125,3 +125,57 @@ def test_select_includes_requested():
 def test_unknown_id_ignored():
     ids = [p.id for p in registry.select_providers(["nope"])]
     assert "nope" not in ids and "elevation" in ids
+
+
+from app.providers import aggregator
+from app.providers.base import ok as _ok, coming_soon as _coming_soon
+
+
+def test_point_context_hoists_placename_and_lists_sections(monkeypatch):
+    aggregator.clear_cache()
+
+    class _Place:
+        id = "placename"; title = "Place"; requires_key = None; always_on = True
+        def fetch(self, ctx):
+            return _ok(self.id, self.title, {"name": "Near Pingora, WY"})
+
+    class _Elev:
+        id = "elevation"; title = "Elevation"; requires_key = None; always_on = True
+        def fetch(self, ctx):
+            return _ok(self.id, self.title, {"elevation_ft": 10450})
+
+    monkeypatch.setattr(aggregator, "select_providers", lambda ids: [_Place(), _Elev()])
+    out = aggregator.point_context(40.0, -105.0)
+    assert out["place_name"] == "Near Pingora, WY"
+    ids = [s["layer_id"] for s in out["sections"]]
+    assert ids == ["elevation"]   # placename hoisted to top level, not a section
+
+
+def test_cache_prevents_refetch(monkeypatch):
+    aggregator.clear_cache()
+
+    class _Counter:
+        id = "elevation"; title = "Elevation"; requires_key = None; always_on = True
+        calls = 0
+        def fetch(self, ctx):
+            type(self).calls += 1
+            return _ok(self.id, self.title, {"elevation_ft": 1000})
+
+    counter = _Counter()
+    monkeypatch.setattr(aggregator, "select_providers", lambda ids: [counter])
+    aggregator.point_context(40.0, -105.0)
+    aggregator.point_context(40.0, -105.0)
+    assert _Counter.calls == 1   # second call served from cache
+
+
+def test_status_mapped_to_kebab_wire(monkeypatch):
+    aggregator.clear_cache()
+
+    class _W:
+        id = "weather"; title = "Current weather"; requires_key = None; always_on = False
+        def fetch(self, ctx):
+            return _coming_soon(self.id, self.title, 3)
+
+    monkeypatch.setattr(aggregator, "select_providers", lambda ids: [_W()])
+    out = aggregator.point_context(40.0, -105.0, ["weather"])
+    assert out["sections"][0]["status"] == "coming-soon"
