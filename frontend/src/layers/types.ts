@@ -12,7 +12,7 @@ export type LayerGroup =
   | "basemap" | "terrain" | "weather" | "hazard" | "reference" | "trip";
 
 export interface Legend {
-  kind: "swatches" | "gradient" | "none";
+  kind: "swatches" | "gradient" | "wheel" | "none";
   items?: { color: string; label: string }[];
   note?: string;
 }
