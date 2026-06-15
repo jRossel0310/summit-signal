@@ -36,3 +36,57 @@ def test_aspect_compass_directions():
     assert aspect_compass(180) == "S"
     assert aspect_compass(270) == "W"
     assert aspect_compass(45) == "NE"
+
+
+from app.providers import slope_aspect as sa_mod
+from app.providers.base import ProviderContext
+
+
+class _Resp:
+    def __init__(self, payload):
+        self._p = payload
+    def raise_for_status(self):
+        return None
+    def json(self):
+        return self._p
+
+
+class _OneCallClient:
+    """Records calls; returns 5 elevations (center,N,E,S,W) for any request."""
+    def __init__(self, elevations):
+        self.elevations = elevations
+        self.calls = 0
+    def __enter__(self):
+        return self
+    def __exit__(self, *a):
+        return False
+    def get(self, url, params=None):
+        self.calls += 1
+        return _Resp({"elevation": self.elevations})
+
+
+def test_provider_ok_single_request(monkeypatch):
+    # center,N,E,S,W : east lower than west -> east-facing
+    client = _OneCallClient([1000, 1000, 950, 1000, 1050])
+    monkeypatch.setattr(sa_mod, "http_client", lambda: client)
+    out = sa_mod.SlopeAspectProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status == "ok"
+    assert out.data["aspect_compass"] == "E"
+    assert out.data["slope_deg"] > 0
+    assert "°" in out.data["slope_bucket"]
+    assert client.calls == 1   # all 5 samples in ONE request
+
+
+def test_provider_never_raises(monkeypatch):
+    class _Boom:
+        def __enter__(self): raise RuntimeError("down")
+        def __exit__(self, *a): return False
+    monkeypatch.setattr(sa_mod, "http_client", lambda: _Boom())
+    out = sa_mod.SlopeAspectProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status in ("error", "empty")
+
+
+def test_provider_empty_when_no_elevations(monkeypatch):
+    monkeypatch.setattr(sa_mod, "http_client", lambda: _OneCallClient([]))
+    out = sa_mod.SlopeAspectProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status in ("empty", "error")

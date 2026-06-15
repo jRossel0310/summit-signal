@@ -4,6 +4,11 @@ Map-shading slope/aspect is computed client-side in a worker; this module is the
 unit-tested source of truth for the single-point value shown in the dashboard."""
 from __future__ import annotations
 import math
+from ..connectors.base import http_client, utcnow_iso
+from .base import ProviderContext, ProviderResult, ok, empty, error
+
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/elevation"
+_SPACING_M = 50.0
 
 # Slope buckets (avalanche-standard). Boundaries shared in spirit with the
 # frontend terrainColors.ts; the two live in different languages.
@@ -34,3 +39,38 @@ def slope_bucket_label(deg: float) -> str:
 
 def aspect_compass(deg: float) -> str:
     return _COMPASS[int((deg % 360) / 45.0 + 0.5) % 8]
+
+
+class SlopeAspectProvider:
+    id = "slope_aspect"
+    title = "Slope & aspect"
+    requires_key = None
+    always_on = True
+
+    def fetch(self, ctx: ProviderContext) -> ProviderResult:
+        lat, lon = ctx.latitude, ctx.longitude
+        dlat = _SPACING_M / 111320.0
+        dlon = _SPACING_M / (111320.0 * max(0.1, math.cos(math.radians(lat))))
+        # order: center, north, east, south, west
+        lats = [lat, lat + dlat, lat, lat - dlat, lat]
+        lons = [lon, lon, lon + dlon, lon, lon - dlon]
+        try:
+            with http_client() as client:
+                r = client.get(OPEN_METEO_URL, params={
+                    "latitude": ",".join(f"{v:.6f}" for v in lats),
+                    "longitude": ",".join(f"{v:.6f}" for v in lons)})
+                r.raise_for_status()
+                elevs = r.json().get("elevation") or []
+                if len(elevs) < 5 or any(e is None for e in elevs[:5]):
+                    return empty(self.id, self.title, "No elevation data at this point")
+                c, n, e, s, w = (float(x) for x in elevs[:5])
+                slope, aspect = compute_slope_aspect(c, n, e, s, w, _SPACING_M)
+                return ok(self.id, self.title, data={
+                    "slope_deg": round(slope, 1),
+                    "aspect_deg": round(aspect, 1),
+                    "aspect_compass": aspect_compass(aspect),
+                    "slope_bucket": slope_bucket_label(slope),
+                }, source_name="Open-Meteo elevation (5-sample slope estimate)",
+                   source_url=OPEN_METEO_URL, source_timestamp=utcnow_iso())
+        except Exception as e:  # noqa: BLE001
+            return error(self.id, self.title, str(e))
