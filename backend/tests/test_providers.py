@@ -70,3 +70,30 @@ def test_elevation_never_raises(monkeypatch):
     monkeypatch.setattr(elevation_mod, "http_client", lambda: _Boom())
     out = elevation_mod.ElevationProvider().fetch(ProviderContext(40.0, -105.0))
     assert out.status == "error"
+
+
+from app.providers import placename as placename_mod
+
+
+def test_placename_ok(monkeypatch):
+    class _C:
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def get(self, url, params=None):
+            return _Resp({"display_name": "Near Pingora, WY"})
+    monkeypatch.setattr(placename_mod, "http_client", lambda: _C())
+    out = placename_mod.PlaceNameProvider().fetch(ProviderContext(42.0, -109.0))
+    assert out.status == "ok" and "Pingora" in out.data["name"]
+
+
+def test_placename_failure_is_empty(monkeypatch):
+    class _C:
+        def __enter__(self):
+            raise RuntimeError("down")
+        def __exit__(self, *a):
+            return False
+    monkeypatch.setattr(placename_mod, "http_client", lambda: _C())
+    out = placename_mod.PlaceNameProvider().fetch(ProviderContext(42.0, -109.0))
+    assert out.status == "empty"
