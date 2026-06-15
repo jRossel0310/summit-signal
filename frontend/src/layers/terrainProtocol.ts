@@ -13,6 +13,11 @@ function getWorker(): Worker {
       const cb = pending.get(ev.data.id);
       if (cb) { pending.delete(ev.data.id); cb(ev.data); }
     };
+    worker.onerror = (e) => {
+      const msg = (e && (e as ErrorEvent).message) || "terrain worker error";
+      pending.forEach((cb) => cb({ ok: false, error: msg }));
+      pending.clear();
+    };
   }
   return worker;
 }
@@ -27,13 +32,17 @@ function parseTile(url: string): { z: number; x: number; y: number } {
  *  Idempotent-ish: call once on map init with the active DEM config. */
 export function registerTerrainProtocols(mlgl: typeof maplibregl, dem: DemSourceConfig) {
   const make = (kind: "slope" | "aspect") =>
-    (params: RequestParameters, _abort: AbortController): Promise<GetResourceResponse<ArrayBuffer>> =>
+    (params: RequestParameters, abortController: AbortController): Promise<GetResourceResponse<ArrayBuffer>> =>
       new Promise((resolve, reject) => {
         const { z, x, y } = parseTile(params.url);
         const id = ++seq;
         pending.set(id, (r) => {
           if (r.ok && r.buf) resolve({ data: r.buf });
           else reject(new Error(r.error || "terrain tile failed"));
+        });
+        abortController.signal.addEventListener("abort", () => {
+          pending.delete(id);
+          reject(new Error("aborted"));
         });
         getWorker().postMessage({ id, kind, z, x, y, demUrl: dem.tiles[0], encoding: dem.encoding });
       });
