@@ -17,7 +17,7 @@ export function getDemSource(): DemSourceConfig {
       tiles: [`https://api.maptiler.com/tiles/terrain-rgb-v2/{z}/{x}/{y}.webp?key=${MAPTILER_KEY}`],
       encoding: "mapbox",
       tileSize: 256,
-      maxzoom: 12,
+      maxzoom: 12,   // MapTiler terrain-RGB tops out at z12; Terrarium goes to 15
       attribution: "© MapTiler © OpenStreetMap contributors",
     };
   }

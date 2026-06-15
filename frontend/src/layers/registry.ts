@@ -1,4 +1,5 @@
 import type { LayerDescriptor } from "./types";
+import { SLOPE_BUCKETS } from "./terrainColors";
 
 // Order matters: panel order, and (for overlays) MapLibre draw order.
 export const LAYERS: LayerDescriptor[] = [
@@ -35,10 +36,7 @@ export const LAYERS: LayerDescriptor[] = [
     legend: { kind: "none" } },
   { id: "overlay.slope", group: "terrain", kind: "raster-overlay", label: "Slope angle",
     defaultVisible: false, defaultOpacity: 0.55, supportsOpacity: true,
-    legend: { kind: "swatches", items: [
-      { color: "#1a9850", label: "0–15" }, { color: "#a6d96a", label: "15–25" },
-      { color: "#f1e34d", label: "25–30" }, { color: "#fdae61", label: "30–35" },
-      { color: "#d73027", label: "35–45" }, { color: "#7b3294", label: "45+" }] } },
+    legend: { kind: "swatches", items: SLOPE_BUCKETS.map((b) => ({ color: b.color, label: b.label })) } },
   { id: "overlay.aspect", group: "terrain", kind: "raster-overlay", label: "Aspect",
     defaultVisible: false, defaultOpacity: 0.55, supportsOpacity: true,
     legend: { kind: "wheel" } },
