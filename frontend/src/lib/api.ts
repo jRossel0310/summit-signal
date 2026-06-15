@@ -10,6 +10,7 @@ import type {
   TripCreate,
   User,
 } from "../types";
+import type { SelectionResult } from "../layers/types";
 
 export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -69,6 +70,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ query }),
     }),
+
+  pointContext: (lat: number, lon: number, layers?: string[]) => {
+    const q = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+    if (layers && layers.length) q.set("layers", layers.join(","));
+    return request<SelectionResult>(`/map/point-context?${q.toString()}`);
+  },
 
   listTrips: () => request<Trip[]>("/trips"),
   getTrip: (id: number) => request<Trip>(`/trips/${id}`),
