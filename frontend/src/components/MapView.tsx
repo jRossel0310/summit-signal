@@ -37,6 +37,7 @@ const DEM = getDemSource();
 let terrainProtocolsReady = false;
 
 const HOVER_TILE = 256;
+const HOVER_CACHE_MAX = 256;
 const demHoverTiles = new Map<string, Float32Array | "loading" | "error">();
 
 function loadHoverTile(z: number, x: number, y: number) {
@@ -57,6 +58,11 @@ function loadHoverTile(z: number, x: number, y: number) {
       const arr = new Float32Array(HOVER_TILE * HOVER_TILE);
       for (let i = 0; i < arr.length; i++) arr[i] = decode(px[i * 4], px[i * 4 + 1], px[i * 4 + 2]);
       demHoverTiles.set(key, arr);
+      while (demHoverTiles.size > HOVER_CACHE_MAX) {
+        const oldest = demHoverTiles.keys().next().value;
+        if (oldest === undefined) break;
+        demHoverTiles.delete(oldest);
+      }
     })
     .catch(() => demHoverTiles.set(key, "error"));
 }
