@@ -29,11 +29,24 @@ export const LAYERS: LayerDescriptor[] = [
   { id: "overlay.point", group: "trip", kind: "marker", label: "Selected point",
     defaultVisible: true, defaultOpacity: 1, supportsOpacity: false },
 
-  // --- coming soon (disabled previews) ---
-  { id: "overlay.slope", group: "terrain", kind: "raster-overlay", label: "Slope angle",
-    defaultVisible: false, defaultOpacity: 0.6, supportsOpacity: true, comingSoonPhase: 2 },
+  // --- terrain (Phase 2; draw order bottom->top: hillshade, slope, aspect, contours) ---
   { id: "overlay.hillshade", group: "terrain", kind: "raster-overlay", label: "Hillshade",
-    defaultVisible: false, defaultOpacity: 0.6, supportsOpacity: true, comingSoonPhase: 2 },
+    defaultVisible: false, defaultOpacity: 0.45, supportsOpacity: true,
+    legend: { kind: "none" } },
+  { id: "overlay.slope", group: "terrain", kind: "raster-overlay", label: "Slope angle",
+    defaultVisible: false, defaultOpacity: 0.55, supportsOpacity: true,
+    legend: { kind: "swatches", items: [
+      { color: "#1a9850", label: "0–15" }, { color: "#a6d96a", label: "15–25" },
+      { color: "#f1e34d", label: "25–30" }, { color: "#fdae61", label: "30–35" },
+      { color: "#d73027", label: "35–45" }, { color: "#7b3294", label: "45+" }] } },
+  { id: "overlay.aspect", group: "terrain", kind: "raster-overlay", label: "Aspect",
+    defaultVisible: false, defaultOpacity: 0.55, supportsOpacity: true,
+    legend: { kind: "wheel" } },
+  { id: "overlay.contours", group: "terrain", kind: "vector-overlay", label: "Contours",
+    defaultVisible: false, defaultOpacity: 0.8, supportsOpacity: true,
+    legend: { kind: "swatches", note: "40 ft / 200 ft index", items: [{ color: "#7a5a3a", label: "contour" }] } },
+
+  // --- coming soon (disabled previews) ---
   { id: "overlay.weather", group: "weather", kind: "data-overlay", label: "Weather / snow",
     providerId: "weather", defaultVisible: false, defaultOpacity: 1, supportsOpacity: false,
     comingSoonPhase: 3 },
