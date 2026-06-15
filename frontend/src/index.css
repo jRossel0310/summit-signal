@@ -532,3 +532,15 @@ a { color: var(--teal); }
 .point-section-src { font-size: 10px; color: #8a8575; }
 .point-skeleton { color: #8a8575; font-size: 12px; padding: 8px 0; }
 .point-error { color: #b00020; font-size: 12px; }
+
+/* --- terrain --- */
+.hover-elev {
+  position: absolute; z-index: 6; pointer-events: none;
+  background: #1f241fdd; color: #fbfaf6; font-size: 11px; font-weight: 600;
+  padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+}
+.aspect-wheel {
+  width: 34px; height: 34px; border-radius: 50%; display: inline-block;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.15);
+}
+.point-bucket { color: #8a8575; font-weight: 400; }
