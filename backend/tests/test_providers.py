@@ -97,3 +97,12 @@ def test_placename_failure_is_empty(monkeypatch):
     monkeypatch.setattr(placename_mod, "http_client", lambda: _C())
     out = placename_mod.PlaceNameProvider().fetch(ProviderContext(42.0, -109.0))
     assert out.status == "empty"
+
+
+from app.providers import stubs
+
+
+def test_stub_is_coming_soon():
+    out = stubs.SlopeAspectStub.fetch(ProviderContext(40.0, -105.0))
+    assert out.status == "coming_soon"
+    assert out.provider_id == "slope_aspect"
