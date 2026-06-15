@@ -3,7 +3,14 @@ import { api, API_BASE } from "./lib/api";
 import type {
   AppSettings, CheckStatus, ConditionCheckDetail, SearchResult, Trip,
 } from "./types";
-import MapView, { type FireDetection, type LayerState } from "./components/MapView";
+import MapView, { type FireDetection } from "./components/MapView";
+import LayersControl from "./components/LayersControl";
+import PointDashboard from "./components/PointDashboard";
+import type { LayerStateMap, SelectionResult } from "./layers/types";
+import {
+  seedLayerState, setVisible as setLayerVisible, setOpacity as setLayerOpacity,
+  selectBasemap, enabledDataProviderIds,
+} from "./layers/layerState";
 import SearchBar from "./components/SearchBar";
 import ConditionDashboard from "./components/ConditionDashboard";
 import TripDetail from "./components/TripDetail";
@@ -121,14 +128,13 @@ export default function App() {
   const [runningAll, setRunningAll] = useState(false);
   const pollRef = useRef<number | null>(null);
 
-  const [layers, setLayers] = useState<LayerState>({
-    basemap: "topo",
-    selectedPoint: true,
-    gpxRoute: true,
-    fires: true,
-    perimeters: true,
-    savedTrips: true,
-  });
+  const [layerState, setLayerState] = useState<LayerStateMap>(seedLayerState());
+
+  // live point-context ("This point" dashboard)
+  const [pointResult, setPointResult] = useState<SelectionResult | null>(null);
+  const [pointLoading, setPointLoading] = useState(false);
+  const [pointError, setPointError] = useState<string | null>(null);
+  const pointCacheRef = useRef<Map<string, SelectionResult>>(new Map());
 
   // ---- boot ----
   useEffect(() => {
@@ -210,6 +216,7 @@ export default function App() {
     setSelectedPoint({ lat: trip.latitude, lon: trip.longitude });
     setPointName(trip.location_name);
     setFlyTo({ lat: trip.latitude, lon: trip.longitude, zoom: 10 });
+    inspectPoint(trip.latitude, trip.longitude);
     setMobileTab("conditions");           // surface conditions on phone
     expandSheet();
     loadLatestCheck(trip);
@@ -284,15 +291,40 @@ export default function App() {
     }
   }
 
+  async function inspectPoint(lat: number, lon: number) {
+    const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+    const cached = pointCacheRef.current.get(key);
+    if (cached) {
+      setPointResult(cached);
+      setPointError(null);
+      setPointLoading(false);
+      return;
+    }
+    setPointLoading(true);
+    setPointError(null);
+    setPointResult(null);
+    try {
+      const res = await api.pointContext(lat, lon, enabledDataProviderIds(layerState));
+      pointCacheRef.current.set(key, res);
+      setPointResult(res);
+    } catch (e) {
+      setPointError((e as Error).message);
+    } finally {
+      setPointLoading(false);
+    }
+  }
+
   function onSearchResult(r: SearchResult) {
     setSelectedPoint({ lat: r.latitude, lon: r.longitude });
     setPointName(r.display_name);
     setFlyTo({ lat: r.latitude, lon: r.longitude, zoom: 11 });
+    inspectPoint(r.latitude, r.longitude);
   }
 
   function onMapSelect(lat: number, lon: number) {
     setSelectedPoint({ lat, lon });
     setPointName(null);
+    inspectPoint(lat, lon);
   }
 
   function onTripCreated(trip: Trip) {
@@ -383,13 +415,11 @@ export default function App() {
                 pointName={pointName}
                 trips={trips}
                 selectedTripId={selectedTrip?.id ?? null}
-                layers={layers}
                 runningAll={runningAll}
                 onTripCreated={onTripCreated}
                 onSelectTrip={selectTrip}
                 onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
                 onRunAll={runAll}
-                onLayersChange={setLayers}
                 onLoginClick={() => setView("auth")}
               />
             </aside>
@@ -397,7 +427,7 @@ export default function App() {
 
           <main className="panel-center">
             <MapView
-              layers={layers}
+              layerState={layerState}
               trips={trips}
               selectedTripId={selectedTrip?.id ?? null}
               selectedPoint={selectedPoint}
@@ -411,10 +441,27 @@ export default function App() {
             <div className="map-overlay-tl">
               <SearchBar onResult={onSearchResult} />
             </div>
+            <div className="map-overlay-tr">
+              <LayersControl
+                layerState={layerState}
+                onSelectBasemap={(id) => setLayerState((s) => selectBasemap(s, id))}
+                onToggle={(id, v) => setLayerState((s) => setLayerVisible(s, id, v))}
+                onOpacity={(id, o) => setLayerState((s) => setLayerOpacity(s, id, o))}
+              />
+            </div>
           </main>
 
           {!isPhone && (
             <aside className="panel-right">
+              <div className="section">
+                <h2 className="section-title">This point</h2>
+                <PointDashboard
+                  coords={selectedPoint}
+                  result={pointResult}
+                  loading={pointLoading}
+                  error={pointError}
+                />
+              </div>
               {user ? (
                 <ConditionDashboard
                   trip={selectedTrip}
@@ -470,22 +517,33 @@ export default function App() {
               </div>
               <div className="sheet-tabpanel" role="tabpanel" aria-labelledby={mobileTab === "conditions" ? "tab-conditions" : "tab-plan"}>
                 {mobileTab === "conditions" ? (
-                  user ? (
-                    <ConditionDashboard
-                      trip={selectedTrip}
-                      check={check}
-                      liveStatus={liveStatus}
-                      running={running}
-                      loadingCheck={loadingCheck}
-                      error={dashError}
-                      staleHours={settings?.stale_hours ?? 24}
-                      onRunCheck={runCheck}
-                      onRegenerateSummary={regenerateSummary}
-                      regenBusy={regenBusy}
-                    />
-                  ) : (
-                    <LoggedOutConditions onLogin={() => setView("auth")} />
-                  )
+                  <>
+                    <div className="section">
+                      <h2 className="section-title">This point</h2>
+                      <PointDashboard
+                        coords={selectedPoint}
+                        result={pointResult}
+                        loading={pointLoading}
+                        error={pointError}
+                      />
+                    </div>
+                    {user ? (
+                      <ConditionDashboard
+                        trip={selectedTrip}
+                        check={check}
+                        liveStatus={liveStatus}
+                        running={running}
+                        loadingCheck={loadingCheck}
+                        error={dashError}
+                        staleHours={settings?.stale_hours ?? 24}
+                        onRunCheck={runCheck}
+                        onRegenerateSummary={regenerateSummary}
+                        regenBusy={regenBusy}
+                      />
+                    ) : (
+                      <LoggedOutConditions onLogin={() => setView("auth")} />
+                    )}
+                  </>
                 ) : (
                   <PlanPanel
                     loggedIn={!!user}
@@ -493,13 +551,11 @@ export default function App() {
                     pointName={pointName}
                     trips={trips}
                     selectedTripId={selectedTrip?.id ?? null}
-                    layers={layers}
                     runningAll={runningAll}
                     onTripCreated={onTripCreated}
                     onSelectTrip={selectTrip}
                     onOpenDetail={(t) => { setDetailTrip(t); setView("detail"); }}
                     onRunAll={runAll}
-                    onLayersChange={setLayers}
                     onLoginClick={() => setView("auth")}
                   />
                 )}
