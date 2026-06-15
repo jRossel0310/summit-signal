@@ -5,6 +5,10 @@ import type { Trip } from "../types";
 import type { LayerStateMap } from "../layers/types";
 import { getBasemapStyle, type BasemapId } from "../layers/basemaps";
 import { activeBasemapId } from "../layers/layerState";
+import { getDemSource } from "../layers/dem";
+import { registerTerrainProtocols } from "../layers/terrainProtocol";
+import { setupContours, contourTilesUrl } from "../layers/contours";
+import { decodeTerrarium, decodeMapbox } from "../layers/terrainMath";
 
 export interface FireDetection {
   latitude: number;
@@ -20,18 +24,57 @@ const OVERLAY_RENDER: Record<string, { layerIds: string[]; opacity?: [string, st
     layerIds: ["perims-fill", "perims-line"],
     opacity: [["perims-fill", "fill-opacity"], ["perims-line", "line-opacity"]],
   },
-  "overlay.fires": {
-    layerIds: ["fires-circle"],
-    opacity: [["fires-circle", "circle-opacity"]],
-  },
-  "overlay.gpx": {
-    layerIds: ["gpx-line"],
-    opacity: [["gpx-line", "line-opacity"]],
-  },
-  "overlay.savedTrips": {
-    layerIds: ["trips-circle", "trips-label"],
-  },
+  "overlay.fires": { layerIds: ["fires-circle"], opacity: [["fires-circle", "circle-opacity"]] },
+  "overlay.gpx": { layerIds: ["gpx-line"], opacity: [["gpx-line", "line-opacity"]] },
+  "overlay.savedTrips": { layerIds: ["trips-circle", "trips-label"] },
+  "overlay.hillshade": { layerIds: ["hillshade"], opacity: [["hillshade", "hillshade-exaggeration"]] },
+  "overlay.slope": { layerIds: ["slope-raster"], opacity: [["slope-raster", "raster-opacity"]] },
+  "overlay.aspect": { layerIds: ["aspect-raster"], opacity: [["aspect-raster", "raster-opacity"]] },
+  "overlay.contours": { layerIds: ["contour-lines", "contour-labels"], opacity: [["contour-lines", "line-opacity"]] },
 };
+
+const DEM = getDemSource();
+let terrainProtocolsReady = false;
+
+const HOVER_TILE = 256;
+const demHoverTiles = new Map<string, Float32Array | "loading" | "error">();
+
+function loadHoverTile(z: number, x: number, y: number) {
+  const key = `${z}/${x}/${y}`;
+  if (demHoverTiles.has(key)) return;
+  demHoverTiles.set(key, "loading");
+  const url = DEM.tiles[0].replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y));
+  fetch(url)
+    .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("dem"))))
+    .then((b) => createImageBitmap(b))
+    .then((bmp) => {
+      const c = document.createElement("canvas");
+      c.width = HOVER_TILE; c.height = HOVER_TILE;
+      const cx = c.getContext("2d")!;
+      cx.drawImage(bmp, 0, 0, HOVER_TILE, HOVER_TILE);
+      const px = cx.getImageData(0, 0, HOVER_TILE, HOVER_TILE).data;
+      const decode = DEM.encoding === "terrarium" ? decodeTerrarium : decodeMapbox;
+      const arr = new Float32Array(HOVER_TILE * HOVER_TILE);
+      for (let i = 0; i < arr.length; i++) arr[i] = decode(px[i * 4], px[i * 4 + 1], px[i * 4 + 2]);
+      demHoverTiles.set(key, arr);
+    })
+    .catch(() => demHoverTiles.set(key, "error"));
+}
+
+function hoverElevationM(lng: number, lat: number): number | null {
+  const z = Math.min(DEM.maxzoom, 12);
+  const n = 2 ** z;
+  const xf = ((lng + 180) / 360) * n;
+  const latRad = (lat * Math.PI) / 180;
+  const yf = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
+  const tx = Math.floor(xf), ty = Math.floor(yf);
+  const cell = demHoverTiles.get(`${z}/${tx}/${ty}`);
+  if (cell === undefined) { loadHoverTile(z, tx, ty); return null; }
+  if (cell === "loading" || cell === "error") return null;
+  const px = Math.min(HOVER_TILE - 1, Math.floor((xf - tx) * HOVER_TILE));
+  const py = Math.min(HOVER_TILE - 1, Math.floor((yf - ty) * HOVER_TILE));
+  return cell[py * HOVER_TILE + px];
+}
 
 interface Props {
   layerState: LayerStateMap;
@@ -57,6 +100,7 @@ export default function MapView({
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const readyRef = useRef(false);
   const activeBaseRef = useRef<string>(activeBasemapId(layerState));
+  const hoverElevRef = useRef<HTMLDivElement | null>(null);
   const handlersRef = useRef({ onSelectPoint, onSelectTrip });
   handlersRef.current = { onSelectPoint, onSelectTrip };
 
@@ -99,6 +143,20 @@ export default function MapView({
 
     map.on("mouseenter", "trips-circle", () => (map.getCanvas().style.cursor = "pointer"));
     map.on("mouseleave", "trips-circle", () => (map.getCanvas().style.cursor = ""));
+    map.on("mousemove", (e) => {
+      const el = hoverElevRef.current;
+      if (!el) return;
+      const terrainOn = ["overlay.hillshade", "overlay.slope", "overlay.aspect", "overlay.contours"]
+        .some((id) => map.getLayer(OVERLAY_RENDER[id].layerIds[0]) &&
+          map.getLayoutProperty(OVERLAY_RENDER[id].layerIds[0], "visibility") === "visible");
+      if (!terrainOn) { el.style.display = "none"; return; }
+      const m = hoverElevationM(e.lngLat.lng, e.lngLat.lat);
+      if (m == null) { el.style.display = "none"; return; }
+      el.style.display = "block";
+      el.style.left = `${e.point.x + 12}px`;
+      el.style.top = `${e.point.y + 12}px`;
+      el.textContent = `${Math.round(m * 3.28084).toLocaleString()} ft`;
+    });
     map.on("click", "fires-circle", (e) => {
       const p = e.features?.[0]?.properties || {};
       new maplibregl.Popup({ closeButton: false })
@@ -165,6 +223,34 @@ export default function MapView({
       },
       paint: { "text-color": "#1f241f", "text-halo-color": "#fbfaf6", "text-halo-width": 1.4 },
     });
+
+    // --- terrain (Phase 2) ---
+    if (!terrainProtocolsReady) {
+      registerTerrainProtocols(maplibregl, DEM);
+      setupContours(maplibregl, DEM);
+      terrainProtocolsReady = true;
+    }
+    map.addSource("dem", {
+      type: "raster-dem", tiles: DEM.tiles, encoding: DEM.encoding,
+      tileSize: DEM.tileSize, maxzoom: DEM.maxzoom, attribution: DEM.attribution,
+    });
+    map.addLayer({ id: "hillshade", type: "hillshade", source: "dem",
+      paint: { "hillshade-exaggeration": 0.45 }, layout: { visibility: "none" } });
+    map.addSource("slope", { type: "raster", tiles: ["slope://{z}/{x}/{y}"], tileSize: 256, minzoom: 10, maxzoom: 22 });
+    map.addLayer({ id: "slope-raster", type: "raster", source: "slope", minzoom: 10,
+      paint: { "raster-opacity": 0.55 }, layout: { visibility: "none" } });
+    map.addSource("aspect", { type: "raster", tiles: ["aspect://{z}/{x}/{y}"], tileSize: 256, minzoom: 10, maxzoom: 22 });
+    map.addLayer({ id: "aspect-raster", type: "raster", source: "aspect", minzoom: 10,
+      paint: { "raster-opacity": 0.55 }, layout: { visibility: "none" } });
+    map.addSource("contours", { type: "vector", tiles: [contourTilesUrl()], maxzoom: DEM.maxzoom });
+    map.addLayer({ id: "contour-lines", type: "line", source: "contours", "source-layer": "contours", minzoom: 10,
+      paint: { "line-color": "#7a5a3a", "line-width": ["match", ["get", "level"], 1, 1.4, 0.6], "line-opacity": 0.8 },
+      layout: { visibility: "none" } });
+    map.addLayer({ id: "contour-labels", type: "symbol", source: "contours", "source-layer": "contours", minzoom: 13,
+      filter: ["==", ["get", "level"], 1],
+      layout: { "symbol-placement": "line", "text-field": ["concat", ["get", "ele"], " ft"], "text-size": 10,
+        "text-font": ["Noto Sans Regular"], visibility: "none" },
+      paint: { "text-color": "#5c4530", "text-halo-color": "#fbfaf6", "text-halo-width": 1.2 } });
   }
 
   function setData(id: string, data: GeoJSON.FeatureCollection) {
@@ -284,6 +370,7 @@ export default function MapView({
         </div>
       )}
       <div className="map-overlay-br">click map to set trip point</div>
+      <div ref={hoverElevRef} className="hover-elev" style={{ display: "none" }} />
     </>
   );
 }
