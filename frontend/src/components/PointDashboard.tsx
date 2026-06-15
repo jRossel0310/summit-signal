@@ -21,6 +21,19 @@ function ElevationValue({ data }: { data: Record<string, unknown> | null | undef
   return <div className="point-elev">{ft != null ? `${ft.toLocaleString()} ft` : "—"}</div>;
 }
 
+function SlopeAspectValue({ data }: { data: Record<string, unknown> | null | undefined }) {
+  const slope = data?.slope_deg as number | undefined;
+  const compass = data?.aspect_compass as string | undefined;
+  const bucket = data?.slope_bucket as string | undefined;
+  if (slope == null) return null;
+  return (
+    <div className="point-elev">
+      {Math.round(slope)}° · {compass ?? "—"}
+      {bucket ? <span className="point-bucket"> · {bucket} band</span> : null}
+    </div>
+  );
+}
+
 function SectionCard({ s }: { s: PointSection }) {
   return (
     <div className={`point-section point-${s.status}`}>
@@ -29,6 +42,7 @@ function SectionCard({ s }: { s: PointSection }) {
         <span className="point-section-status">{STATUS_LABEL[s.status] ?? s.status}</span>
       </div>
       {s.layer_id === "elevation" && s.status === "ok" ? <ElevationValue data={s.data} /> : null}
+      {s.layer_id === "slope_aspect" && s.status === "ok" ? <SlopeAspectValue data={s.data} /> : null}
       {s.message ? <div className="point-section-msg">{s.message}</div> : null}
       {s.source ? (
         <div className="point-section-src">
