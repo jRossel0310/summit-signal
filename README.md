@@ -79,6 +79,7 @@ Every summary ends with the disclaimer and a manual verification checklist (aval
 
 - **Map** (MapLibre GL): OpenTopoMap/OSM basemaps, search by name or `lat, lon`, click-to-select, saved-trip markers, GPX route display, FIRMS detection dots, WFIGS perimeter polygons, per-layer toggles.
 - **Map layers:** floating Layers control with five basemaps (street / satellite / topo / hybrid / dark), per-overlay visibility + opacity, and legends. Basemaps run fully free with no API key; set `VITE_MAPTILER_KEY` (free tier) to upgrade to MapTiler vector styles. Click any point for a live **"This point"** dashboard (elevation now; slope/aspect/weather arrive in later phases).
+  Terrain layers (Phase 2): hillshade, avalanche slope-angle shading, aspect, and on-the-fly contours, all from free elevation tiles (no key); clicking a point also reports slope° and aspect.
 - **GPX upload**: route drawn on map; bounding box used for fire/weather queries; length and elevation range computed.
 - **Trip detail view**: full check history, manual notes, per-check flag/summary review.
 - **Printable report**: `GET /trips/{id}/print-report` renders a standalone print-CSS page (also reachable from the UI) with every section, source table, checklist, and disclaimer.
