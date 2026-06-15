@@ -106,3 +106,22 @@ def test_stub_is_coming_soon():
     out = stubs.SlopeAspectStub.fetch(ProviderContext(40.0, -105.0))
     assert out.status == "coming_soon"
     assert out.provider_id == "slope_aspect"
+
+
+from app.providers import registry
+
+
+def test_select_includes_always_on_by_default():
+    ids = [p.id for p in registry.select_providers(None)]
+    assert "elevation" in ids and "placename" in ids
+    assert "slope_aspect" not in ids   # toggle-gated, not requested
+
+
+def test_select_includes_requested():
+    ids = [p.id for p in registry.select_providers(["slope_aspect"])]
+    assert "slope_aspect" in ids and "elevation" in ids
+
+
+def test_unknown_id_ignored():
+    ids = [p.id for p in registry.select_providers(["nope"])]
+    assert "nope" not in ids and "elevation" in ids
