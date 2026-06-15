@@ -202,3 +202,21 @@ class SettingsUpdate(BaseModel):
     cold_low_f: Optional[float] = None
     stale_hours: Optional[float] = None
     connectors_enabled: Optional[dict] = None
+
+
+# ---------- Map point-context ----------
+
+class PointSectionOut(BaseModel):
+    layer_id: str
+    title: str
+    status: str
+    data: Optional[dict] = None
+    message: Optional[str] = None
+    source: Optional[dict] = None
+
+
+class PointContextResponse(BaseModel):
+    lat: float
+    lon: float
+    place_name: Optional[str] = None
+    sections: list[PointSectionOut] = Field(default_factory=list)
