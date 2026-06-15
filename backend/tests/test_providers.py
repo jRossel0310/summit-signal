@@ -103,9 +103,9 @@ from app.providers import stubs
 
 
 def test_stub_is_coming_soon():
-    out = stubs.SlopeAspectStub.fetch(ProviderContext(40.0, -105.0))
+    out = stubs.WeatherStub.fetch(ProviderContext(40.0, -105.0))
     assert out.status == "coming_soon"
-    assert out.provider_id == "slope_aspect"
+    assert out.provider_id == "weather"
 
 
 from app.providers import registry
@@ -114,7 +114,7 @@ from app.providers import registry
 def test_select_includes_always_on_by_default():
     ids = [p.id for p in registry.select_providers(None)]
     assert "elevation" in ids and "placename" in ids
-    assert "slope_aspect" not in ids   # toggle-gated, not requested
+    assert "slope_aspect" in ids   # always-on via SlopeAspectProvider
 
 
 def test_select_includes_requested():

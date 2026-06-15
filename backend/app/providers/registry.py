@@ -6,11 +6,12 @@ from .base import Provider
 from .elevation import ElevationProvider
 from .placename import PlaceNameProvider
 from . import stubs
+from .slope_aspect import SlopeAspectProvider
 
 _ALL: list[Provider] = [
     PlaceNameProvider(),
     ElevationProvider(),
-    stubs.SlopeAspectStub,
+    SlopeAspectProvider(),
     stubs.WeatherStub,
 ]
 PROVIDERS: dict[str, Provider] = {p.id: p for p in _ALL}
