@@ -1,4 +1,3 @@
-@"
 # Python
 __pycache__/
 *.pyc
@@ -14,4 +13,6 @@ frontend/dist/
 
 # Test artifacts
 .pytest_cache/
-"@ | Set-Content .gitignore -Encoding utf8
+
+# Brainstorming visual companion scratch
+.superpowers/
