@@ -2,15 +2,9 @@ import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Trip } from "../types";
-
-export interface LayerState {
-  basemap: "topo" | "street";
-  selectedPoint: boolean;
-  gpxRoute: boolean;
-  fires: boolean;
-  perimeters: boolean;
-  savedTrips: boolean;
-}
+import type { LayerStateMap } from "../layers/types";
+import { getBasemapStyle, type BasemapId } from "../layers/basemaps";
+import { activeBasemapId } from "../layers/layerState";
 
 export interface FireDetection {
   latitude: number;
@@ -20,8 +14,27 @@ export interface FireDetection {
   acq_date?: string;
 }
 
+// Maps a registry overlay id -> its MapLibre layer ids + opacity paint props.
+const OVERLAY_RENDER: Record<string, { layerIds: string[]; opacity?: [string, string][] }> = {
+  "overlay.perimeters": {
+    layerIds: ["perims-fill", "perims-line"],
+    opacity: [["perims-fill", "fill-opacity"], ["perims-line", "line-opacity"]],
+  },
+  "overlay.fires": {
+    layerIds: ["fires-circle"],
+    opacity: [["fires-circle", "circle-opacity"]],
+  },
+  "overlay.gpx": {
+    layerIds: ["gpx-line"],
+    opacity: [["gpx-line", "line-opacity"]],
+  },
+  "overlay.savedTrips": {
+    layerIds: ["trips-circle", "trips-label"],
+  },
+};
+
 interface Props {
-  layers: LayerState;
+  layerState: LayerStateMap;
   trips: Trip[];
   selectedTripId: number | null;
   selectedPoint: { lat: number; lon: number } | null;
@@ -33,47 +46,17 @@ interface Props {
   onSelectTrip: (id: number) => void;
 }
 
-const GLYPHS = "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf";
-
-const STREET_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  glyphs: GLYPHS,
-  sources: {
-    base: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
-    },
-  },
-  layers: [{ id: "base", type: "raster", source: "base" }],
-};
-
-const TOPO_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  glyphs: GLYPHS,
-  sources: {
-    base: {
-      type: "raster",
-      tiles: ["https://tile.opentopomap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)",
-    },
-  },
-  layers: [{ id: "base", type: "raster", source: "base" }],
-};
-
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
 export default function MapView({
-  layers, trips, selectedTripId, selectedPoint, flyTo, gpxPoints,
+  layerState, trips, selectedTripId, selectedPoint, flyTo, gpxPoints,
   fireDetections, perimeterGeojson, onSelectPoint, onSelectTrip,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const readyRef = useRef(false);
-  // Keep latest handlers without re-binding map events.
+  const activeBaseRef = useRef<string>(activeBasemapId(layerState));
   const handlersRef = useRef({ onSelectPoint, onSelectTrip });
   handlersRef.current = { onSelectPoint, onSelectTrip };
 
@@ -82,7 +65,7 @@ export default function MapView({
     if (!containerRef.current || mapRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: layers.basemap === "topo" ? TOPO_STYLE : STREET_STYLE,
+      style: getBasemapStyle(activeBasemapId(layerState) as BasemapId),
       center: [-110.5, 41.5],
       zoom: 4,
       attributionControl: { compact: true },
@@ -96,7 +79,6 @@ export default function MapView({
       readyRef.current = true;
       syncAll();
     });
-    // Re-add overlays after any style swap.
     map.on("styledata", () => {
       if (!readyRef.current) return;
       if (!map.getSource("trips")) {
@@ -236,16 +218,26 @@ export default function MapView({
     });
   }
   function syncPerims() { setData("perims", perimeterGeojson || EMPTY_FC); }
+
   function syncVisibility() {
-    setVisible(["trips-circle", "trips-label"], layers.savedTrips);
-    setVisible(["gpx-line"], layers.gpxRoute);
-    setVisible(["fires-circle"], layers.fires);
-    setVisible(["perims-fill", "perims-line"], layers.perimeters);
+    const map = mapRef.current;
+    if (!map) return;
+    for (const [id, render] of Object.entries(OVERLAY_RENDER)) {
+      const st = layerState[id];
+      setVisible(render.layerIds, !!st?.visible);
+      if (render.opacity && st) {
+        for (const [layerId, prop] of render.opacity) {
+          if (map.getLayer(layerId)) map.setPaintProperty(layerId, prop, st.opacity);
+        }
+      }
+    }
   }
+
   function syncMarker() {
     const map = mapRef.current;
     if (!map) return;
-    if (selectedPoint && layers.selectedPoint) {
+    const pointVisible = layerState["overlay.point"]?.visible ?? true;
+    if (selectedPoint && pointVisible) {
       if (!markerRef.current) {
         const el = document.createElement("div");
         el.innerHTML =
@@ -263,15 +255,19 @@ export default function MapView({
   useEffect(() => { if (readyRef.current) syncGpx(); }, [gpxPoints]);
   useEffect(() => { if (readyRef.current) syncFires(); }, [fireDetections]);
   useEffect(() => { if (readyRef.current) syncPerims(); }, [perimeterGeojson]);
-  useEffect(() => { if (readyRef.current) syncVisibility(); }, [layers]);
-  useEffect(() => { syncMarker(); }, [selectedPoint, layers.selectedPoint]);
+  useEffect(() => { if (readyRef.current) syncVisibility(); }, [layerState]);
+  useEffect(() => { syncMarker(); }, [selectedPoint, layerState]);
 
-  // basemap swap
+  // basemap swap (only when the active basemap actually changes)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
-    map.setStyle(layers.basemap === "topo" ? TOPO_STYLE : STREET_STYLE);
-  }, [layers.basemap]);
+    const next = activeBasemapId(layerState);
+    if (next !== activeBaseRef.current) {
+      activeBaseRef.current = next;
+      map.setStyle(getBasemapStyle(next as BasemapId));
+    }
+  }, [layerState]);
 
   // fly to target
   useEffect(() => {
