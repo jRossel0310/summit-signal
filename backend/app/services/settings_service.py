@@ -28,6 +28,7 @@ ENV_KEY_MAP = {
     "firms": "SUMMIT_SIGNAL_FIRMS_KEY",
     "airnow": "SUMMIT_SIGNAL_AIRNOW_KEY",
     "nps": "SUMMIT_SIGNAL_NPS_KEY",
+    "ors": "SUMMIT_SIGNAL_ORS_KEY",
 }
 
 
