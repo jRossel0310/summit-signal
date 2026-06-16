@@ -63,10 +63,10 @@ def _avalanche(bbox):
 
 
 def _aqi(bbox):
-    if not get_api_key(None, "airnow"):
+    key = get_api_key(None, "airnow")
+    if not key:
         return "needs_key", []
     from ..connectors.base import http_client
-    key = get_api_key(None, "airnow")
     params = {
         "startDate": "", "endDate": "",
         "parameters": "PM25", "BBOX": f"{bbox['west']},{bbox['south']},{bbox['east']},{bbox['north']}",
@@ -75,7 +75,8 @@ def _aqi(bbox):
     with http_client() as client:
         r = client.get("https://www.airnowapi.org/aq/data/", params=params)
         r.raise_for_status()
-        rows = r.json() if isinstance(r.json(), list) else []
+        data = r.json()
+        rows = data if isinstance(data, list) else []
     feats = [{
         "type": "Feature",
         "geometry": {"type": "Point", "coordinates": [row.get("Longitude"), row.get("Latitude")]},
