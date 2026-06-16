@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Trip } from "../types";
 import type { LayerStateMap } from "../layers/types";
 import { getBasemapStyle, type BasemapId } from "../layers/basemaps";
+import { useViewportLayers } from "../hooks/useViewportLayers";
 import { activeBasemapId } from "../layers/layerState";
 import { getDemSource } from "../layers/dem";
 import { registerTerrainProtocols } from "../layers/terrainProtocol";
@@ -31,6 +32,8 @@ const OVERLAY_RENDER: Record<string, { layerIds: string[]; opacity?: [string, st
   "overlay.slope": { layerIds: ["slope-raster"], opacity: [["slope-raster", "raster-opacity"]] },
   "overlay.aspect": { layerIds: ["aspect-raster"], opacity: [["aspect-raster", "raster-opacity"]] },
   "overlay.contours": { layerIds: ["contour-lines", "contour-labels"], opacity: [["contour-lines", "line-opacity"]] },
+  "overlay.aqi": { layerIds: ["aqi-circle"], opacity: [["aqi-circle", "circle-opacity"]] },
+  "overlay.avalanche": { layerIds: ["avy-fill", "avy-line"], opacity: [["avy-fill", "fill-opacity"]] },
 };
 
 const DEM = getDemSource();
@@ -89,8 +92,6 @@ interface Props {
   selectedPoint: { lat: number; lon: number } | null;
   flyTo: { lat: number; lon: number; zoom?: number } | null;
   gpxPoints: [number, number, number | null][] | null; // [lat, lon, ele]
-  fireDetections: FireDetection[];
-  perimeterGeojson: GeoJSON.FeatureCollection | null;
   onSelectPoint: (lat: number, lon: number) => void;
   onSelectTrip: (id: number) => void;
 }
@@ -99,7 +100,7 @@ const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", feature
 
 export default function MapView({
   layerState, trips, selectedTripId, selectedPoint, flyTo, gpxPoints,
-  fireDetections, perimeterGeojson, onSelectPoint, onSelectTrip,
+  onSelectPoint, onSelectTrip,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -109,6 +110,7 @@ export default function MapView({
   const hoverElevRef = useRef<HTMLDivElement | null>(null);
   const handlersRef = useRef({ onSelectPoint, onSelectTrip });
   handlersRef.current = { onSelectPoint, onSelectTrip };
+  const [ready, setReady] = useState(false);
 
   // ---- init once ----
   useEffect(() => {
@@ -127,6 +129,7 @@ export default function MapView({
     map.on("load", () => {
       addOverlaySources(map);
       readyRef.current = true;
+      setReady(true);
       syncAll();
     });
     map.on("styledata", () => {
@@ -197,6 +200,19 @@ export default function MapView({
       id: "perims-line", type: "line", source: "perims",
       paint: { "line-color": "#d84a1b", "line-width": 1.6, "line-dasharray": [3, 2] },
     });
+    map.addSource("aqi", { type: "geojson", data: EMPTY_FC });
+    map.addLayer({ id: "aqi-circle", type: "circle", source: "aqi", layout: { visibility: "none" },
+      paint: { "circle-radius": 7,
+        "circle-color": ["step", ["coalesce", ["get", "aqi"], 0], "#00e400", 51, "#ffff00", 101, "#ff7e00", 151, "#ff0000", 201, "#8f3f97", 301, "#7e0023"],
+        "circle-stroke-color": "#1f241f", "circle-stroke-width": 1, "circle-opacity": 0.85 } });
+    map.addSource("avy", { type: "geojson", data: EMPTY_FC });
+    map.addLayer({ id: "avy-fill", type: "fill", source: "avy", layout: { visibility: "none" },
+      paint: { "fill-opacity": 0.4,
+        "fill-color": ["match", ["downcase", ["coalesce", ["to-string", ["get", "danger"]], ""]],
+          "low", "#52ba4a", "moderate", "#fff300", "considerable", "#f7941e",
+          "high", "#ed1c24", "extreme", "#231f20", "#9aa395"] } });
+    map.addLayer({ id: "avy-line", type: "line", source: "avy", layout: { visibility: "none" },
+      paint: { "line-color": "#1f241f", "line-width": 0.6, "line-opacity": 0.5 } });
     map.addLayer({
       id: "fires-circle", type: "circle", source: "fires",
       paint: {
@@ -273,7 +289,7 @@ export default function MapView({
   }
 
   function syncAll() {
-    syncTrips(); syncGpx(); syncFires(); syncPerims(); syncVisibility(); syncMarker();
+    syncTrips(); syncGpx(); syncVisibility(); syncMarker();
   }
 
   function syncTrips() {
@@ -297,20 +313,6 @@ export default function MapView({
       }],
     });
   }
-  function syncFires() {
-    setData("fires", {
-      type: "FeatureCollection",
-      features: fireDetections.map((f) => ({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: [f.longitude, f.latitude] },
-        properties: {
-          distance_miles: f.distance_miles, confidence: f.confidence, acq_date: f.acq_date,
-        },
-      })),
-    });
-  }
-  function syncPerims() { setData("perims", perimeterGeojson || EMPTY_FC); }
-
   function syncVisibility() {
     const map = mapRef.current;
     if (!map) return;
@@ -345,10 +347,9 @@ export default function MapView({
   // ---- prop-driven syncs ----
   useEffect(() => { if (readyRef.current) syncTrips(); }, [trips, selectedTripId]);
   useEffect(() => { if (readyRef.current) syncGpx(); }, [gpxPoints]);
-  useEffect(() => { if (readyRef.current) syncFires(); }, [fireDetections]);
-  useEffect(() => { if (readyRef.current) syncPerims(); }, [perimeterGeojson]);
   useEffect(() => { if (readyRef.current) syncVisibility(); }, [layerState]);
   useEffect(() => { syncMarker(); }, [selectedPoint, layerState]);
+  useViewportLayers(mapRef, layerState, ready);
 
   // basemap swap (only when the active basemap actually changes)
   useEffect(() => {
