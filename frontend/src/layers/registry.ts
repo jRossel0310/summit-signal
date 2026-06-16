@@ -16,11 +16,11 @@ export const LAYERS: LayerDescriptor[] = [
     defaultVisible: false, defaultOpacity: 1, supportsOpacity: false },
 
   // --- overlays (migrated; multi-toggle) ---
-  { id: "overlay.perimeters", group: "hazard", kind: "vector-overlay", label: "Fire perimeters",
-    defaultVisible: true, defaultOpacity: 0.18, supportsOpacity: true,
+  { id: "overlay.perimeters", group: "hazard", kind: "data-overlay", label: "Fire perimeters",
+    providerId: "wildfire", defaultVisible: false, defaultOpacity: 0.18, supportsOpacity: true,
     legend: { kind: "swatches", items: [{ color: "#d84a1b", label: "Active perimeter" }] } },
-  { id: "overlay.fires", group: "hazard", kind: "marker", label: "Active fires",
-    defaultVisible: true, defaultOpacity: 0.75, supportsOpacity: true,
+  { id: "overlay.fires", group: "hazard", kind: "data-overlay", label: "Active fires",
+    providerId: "wildfire", defaultVisible: false, defaultOpacity: 0.75, supportsOpacity: true,
     legend: { kind: "swatches", items: [{ color: "#ff5a1f", label: "VIIRS detection" }] } },
   { id: "overlay.gpx", group: "trip", kind: "vector-overlay", label: "GPX route",
     defaultVisible: true, defaultOpacity: 0.9, supportsOpacity: true,
@@ -44,10 +44,19 @@ export const LAYERS: LayerDescriptor[] = [
     defaultVisible: false, defaultOpacity: 0.8, supportsOpacity: true,
     legend: { kind: "swatches", note: "40 ft / 200 ft index", items: [{ color: "#7a5a3a", label: "contour" }] } },
 
-  // --- coming soon (disabled previews) ---
-  { id: "overlay.weather", group: "weather", kind: "data-overlay", label: "Weather / snow",
-    providerId: "weather", defaultVisible: false, defaultOpacity: 1, supportsOpacity: false,
-    comingSoonPhase: 3 },
+  // --- hazard data-overlays ---
+  { id: "overlay.aqi", group: "hazard", kind: "data-overlay", label: "Air quality (AQI)",
+    providerId: "aqi", defaultVisible: false, defaultOpacity: 0.85, supportsOpacity: true,
+    legend: { kind: "swatches", items: [
+      { color: "#00e400", label: "Good" }, { color: "#ffff00", label: "Mod" },
+      { color: "#ff7e00", label: "USG" }, { color: "#ff0000", label: "Unhealthy" },
+      { color: "#8f3f97", label: "V.Unhealthy" }, { color: "#7e0023", label: "Hazard" }] } },
+  { id: "overlay.avalanche", group: "hazard", kind: "data-overlay", label: "Avalanche danger",
+    providerId: "avalanche", defaultVisible: false, defaultOpacity: 0.4, supportsOpacity: true,
+    legend: { kind: "swatches", items: [
+      { color: "#52ba4a", label: "Low" }, { color: "#fff300", label: "Mod" },
+      { color: "#f7941e", label: "Consid." }, { color: "#ed1c24", label: "High" },
+      { color: "#231f20", label: "Extreme" }] } },
 ];
 
 export const BASEMAP_LAYERS = LAYERS.filter((l) => l.group === "basemap");

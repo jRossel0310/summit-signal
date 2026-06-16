@@ -544,3 +544,7 @@ a { color: var(--teal); }
   box-shadow: inset 0 0 0 1px rgba(0,0,0,.15);
 }
 .point-bucket { color: #8a8575; font-weight: 400; }
+
+/* --- hazards --- */
+.point-section.point-needs-key { border-style: dashed; }
+.point-section.point-needs-key .point-section-status { color: #b08900; }

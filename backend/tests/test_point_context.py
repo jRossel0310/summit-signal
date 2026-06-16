@@ -45,6 +45,13 @@ def _patch(monkeypatch):
     aggregator.clear_cache()
     monkeypatch.setattr(elevation_mod, "http_client", lambda: _FakeClient())
     monkeypatch.setattr(placename_mod, "http_client", lambda: _FakeClient())
+    from app.providers import current_weather as _cw, snow as _snow, freeze_thaw as _ft
+    from app.schemas import ConnectorOutput as _CO
+    monkeypatch.setattr(_cw, "http_client", lambda: _FakeClient())
+    monkeypatch.setattr(_snow, "http_client", lambda: _FakeClient())
+    monkeypatch.setattr(_ft.nws_weather, "run", lambda ctx: _CO(
+        connector_name="nws_weather", status="success",
+        normalized={"hourly_sample": [], "high_f": None, "low_f": None}))
 
 
 def test_point_context_returns_sections(monkeypatch):
@@ -69,9 +76,9 @@ def test_point_context_rejects_bad_coords():
     assert r.status_code == 400
 
 
-def test_point_context_includes_coming_soon(monkeypatch):
+def test_point_context_unknown_layer_id_ignored(monkeypatch):
     _patch(monkeypatch)
-    r = client.get("/map/point-context",
-                   params={"lat": 40.0, "lon": -105.0, "layers": "weather"})
-    statuses = {s["layer_id"]: s["status"] for s in r.json()["sections"]}
-    assert statuses.get("weather") == "coming-soon"
+    r = client.get("/map/point-context", params={"lat": 40.0, "lon": -105.0, "layers": "nope"})
+    assert r.status_code == 200
+    ids = {s["layer_id"] for s in r.json()["sections"]}
+    assert "nope" not in ids and "elevation" in ids

@@ -12,6 +12,8 @@ import type {
 } from "../types";
 import type { SelectionResult } from "../layers/types";
 
+export interface LayerData { status: string; features: GeoJSON.Feature[]; message?: string | null; }
+
 export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 const TOKEN_KEY = "summitsignal_token";
@@ -75,6 +77,14 @@ export const api = {
     const q = new URLSearchParams({ lat: String(lat), lon: String(lon) });
     if (layers && layers.length) q.set("layers", layers.join(","));
     return request<SelectionResult>(`/map/point-context?${q.toString()}`);
+  },
+
+  layerData: (id: string, bbox: { west: number; south: number; east: number; north: number }) => {
+    const q = new URLSearchParams({
+      west: String(bbox.west), south: String(bbox.south),
+      east: String(bbox.east), north: String(bbox.north),
+    });
+    return request<LayerData>(`/map/layer/${id}?${q.toString()}`);
   },
 
   listTrips: () => request<Trip[]>("/trips"),

@@ -5,14 +5,24 @@ from __future__ import annotations
 from .base import Provider
 from .elevation import ElevationProvider
 from .placename import PlaceNameProvider
-from . import stubs
 from .slope_aspect import SlopeAspectProvider
+from .current_weather import CurrentWeatherProvider
+from .snow import SnowProvider
+from .freeze_thaw import FreezeThawProvider
+from .aqi import AqiProvider
+from .wildfire import WildfireProvider
+from .avalanche import AvalancheProvider
 
 _ALL: list[Provider] = [
     PlaceNameProvider(),
     ElevationProvider(),
     SlopeAspectProvider(),
-    stubs.WeatherStub,
+    CurrentWeatherProvider(),
+    SnowProvider(),
+    FreezeThawProvider(),
+    AqiProvider(),
+    WildfireProvider(),
+    AvalancheProvider(),
 ]
 PROVIDERS: dict[str, Provider] = {p.id: p for p in _ALL}
 

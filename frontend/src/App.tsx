@@ -3,7 +3,7 @@ import { api, API_BASE } from "./lib/api";
 import type {
   AppSettings, CheckStatus, ConditionCheckDetail, SearchResult, Trip,
 } from "./types";
-import MapView, { type FireDetection } from "./components/MapView";
+import MapView from "./components/MapView";
 import LayersControl from "./components/LayersControl";
 import PointDashboard from "./components/PointDashboard";
 import type { LayerStateMap, SelectionResult } from "./layers/types";
@@ -172,19 +172,6 @@ export default function App() {
       }
     } catch { /* keep old list */ }
   }, [selectedTrip]);
-
-  // ---- map-extracted data for layers ----
-  const fireDetections: FireDetection[] = useMemo(() => {
-    const r = check?.connector_results.find((c) => c.connector_name === "nasa_firms");
-    const dets = (r?.normalized as any)?.detections;
-    return Array.isArray(dets) ? dets : [];
-  }, [check]);
-
-  const perimeterGeojson = useMemo(() => {
-    const r = check?.connector_results.find((c) => c.connector_name === "nifc_wfigs");
-    const fc = (r?.normalized as any)?.geojson;
-    return fc && fc.type === "FeatureCollection" ? (fc as GeoJSON.FeatureCollection) : null;
-  }, [check]);
 
   const gpxPoints = useMemo(() => selectedTrip?.gpx_route?.points || null, [selectedTrip]);
 
@@ -433,8 +420,6 @@ export default function App() {
               selectedPoint={selectedPoint}
               flyTo={flyTo}
               gpxPoints={gpxPoints}
-              fireDetections={fireDetections}
-              perimeterGeojson={perimeterGeojson}
               onSelectPoint={onMapSelect}
               onSelectTrip={(id) => { const t = trips.find((x) => x.id === id); if (t) selectTrip(t); }}
             />
