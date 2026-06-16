@@ -48,6 +48,12 @@ interface Props {
   gpxPoints: [number, number, number | null][] | null; // [lat, lon, ele]
   onSelectPoint: (lat: number, lon: number) => void;
   onSelectTrip: (id: number) => void;
+  // route builder (additive; all optional so existing usage is unaffected)
+  routeMode?: boolean;
+  routeWaypoints?: { lat: number; lon: number }[];
+  routeSnappedPoints?: [number, number, number | null][] | null;
+  onRouteAddWaypoint?: (lat: number, lon: number) => void;
+  onRouteMoveWaypoint?: (index: number, lat: number, lon: number) => void;
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
@@ -55,6 +61,8 @@ const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", feature
 export default function MapView({
   layerState, trips, selectedTripId, selectedPoint, flyTo, gpxPoints,
   onSelectPoint, onSelectTrip,
+  routeMode = false, routeWaypoints = [], routeSnappedPoints = null,
+  onRouteAddWaypoint, onRouteMoveWaypoint,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -64,6 +72,9 @@ export default function MapView({
   const hoverElevRef = useRef<HTMLDivElement | null>(null);
   const handlersRef = useRef({ onSelectPoint, onSelectTrip });
   handlersRef.current = { onSelectPoint, onSelectTrip };
+  const routeRef = useRef({ routeMode, onRouteAddWaypoint, onRouteMoveWaypoint });
+  routeRef.current = { routeMode, onRouteAddWaypoint, onRouteMoveWaypoint };
+  const wpMarkersRef = useRef<maplibregl.Marker[]>([]);
   const [ready, setReady] = useState(false);
 
   // ---- init once ----
@@ -101,6 +112,10 @@ export default function MapView({
         if (id != null) handlersRef.current.onSelectTrip(Number(id));
         return;
       }
+      if (routeRef.current.routeMode) {
+        routeRef.current.onRouteAddWaypoint?.(e.lngLat.lat, e.lngLat.lng);
+        return;
+      }
       handlersRef.current.onSelectPoint(e.lngLat.lat, e.lngLat.lng);
     });
 
@@ -132,6 +147,8 @@ export default function MapView({
     });
 
     return () => {
+      for (const m of wpMarkersRef.current) m.remove();
+      wpMarkersRef.current = [];
       map.remove();
       mapRef.current = null;
       readyRef.current = false;
@@ -178,6 +195,35 @@ export default function MapView({
       id: "gpx-line", type: "line", source: "gpx",
       layout: { "line-cap": "round", "line-join": "round" },
       paint: { "line-color": "#0f766e", "line-width": 3.2, "line-opacity": 0.9 },
+    });
+    map.addSource("route-builder-line", { type: "geojson", data: EMPTY_FC });
+    map.addLayer({
+      id: "route-builder-line-manual", type: "line", source: "route-builder-line",
+      filter: ["==", ["get", "kind"], "manual"],
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#8a5a12", "line-width": 2.2, "line-dasharray": [2, 2], "line-opacity": 0.9 },
+    });
+    map.addLayer({
+      id: "route-builder-line-snapped", type: "line", source: "route-builder-line",
+      filter: ["==", ["get", "kind"], "snapped"],
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#1d6fd8", "line-width": 4, "line-opacity": 0.95 },
+    });
+    map.addSource("route-builder-waypoints", { type: "geojson", data: EMPTY_FC });
+    map.addLayer({
+      id: "route-builder-waypoints", type: "circle", source: "route-builder-waypoints",
+      paint: {
+        "circle-radius": 8, "circle-color": "#1d6fd8",
+        "circle-stroke-color": "#fbfaf6", "circle-stroke-width": 2,
+      },
+    });
+    map.addLayer({
+      id: "route-builder-labels", type: "symbol", source: "route-builder-waypoints",
+      layout: {
+        "text-field": ["get", "label"], "text-size": 11,
+        "text-font": ["Noto Sans Regular"], "text-allow-overlap": true,
+      },
+      paint: { "text-color": "#fbfaf6" },
     });
     map.addLayer({
       id: "trips-circle", type: "circle", source: "trips",
@@ -243,7 +289,7 @@ export default function MapView({
   }
 
   function syncAll() {
-    syncTrips(); syncGpx(); syncVisibility(); syncMarker();
+    syncTrips(); syncGpx(); syncRouteLine(); syncWaypointMarkers(); syncVisibility(); syncMarker();
   }
 
   function syncTrips() {
@@ -267,6 +313,57 @@ export default function MapView({
       }],
     });
   }
+
+  function syncRouteLine() {
+    const feats: GeoJSON.Feature[] = [];
+    if (routeWaypoints.length >= 2) {
+      feats.push({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: routeWaypoints.map((w) => [w.lon, w.lat]) },
+        properties: { kind: "manual" },
+      });
+    }
+    if (routeSnappedPoints && routeSnappedPoints.length >= 2) {
+      feats.push({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: routeSnappedPoints.map((p) => [p[1], p[0]]) },
+        properties: { kind: "snapped" },
+      });
+    }
+    setData("route-builder-line", { type: "FeatureCollection", features: feats });
+  }
+
+  function syncWaypointMarkers() {
+    const map = mapRef.current;
+    if (!map) return;
+    setData("route-builder-waypoints", {
+      type: "FeatureCollection",
+      features: routeWaypoints.map((w, i) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [w.lon, w.lat] },
+        properties: { label: String(i + 1) },
+      })),
+    });
+    for (const m of wpMarkersRef.current) m.remove();
+    wpMarkersRef.current = [];
+    if (!routeMode) return;
+    routeWaypoints.forEach((w, i) => {
+      const el = document.createElement("div");
+      el.style.width = "20px";
+      el.style.height = "20px";
+      el.style.borderRadius = "50%";
+      el.style.cursor = "grab";
+      const marker = new maplibregl.Marker({ element: el, draggable: true })
+        .setLngLat([w.lon, w.lat])
+        .addTo(map);
+      marker.on("dragend", () => {
+        const ll = marker.getLngLat();
+        routeRef.current.onRouteMoveWaypoint?.(i, ll.lat, ll.lng);
+      });
+      wpMarkersRef.current.push(marker);
+    });
+  }
+
   function syncVisibility() {
     const map = mapRef.current;
     if (!map) return;
@@ -301,6 +398,13 @@ export default function MapView({
   // ---- prop-driven syncs ----
   useEffect(() => { if (readyRef.current) syncTrips(); }, [trips, selectedTripId]);
   useEffect(() => { if (readyRef.current) syncGpx(); }, [gpxPoints]);
+  useEffect(() => { if (readyRef.current) syncRouteLine(); }, [routeWaypoints, routeSnappedPoints]);
+  useEffect(() => { if (readyRef.current) syncWaypointMarkers(); }, [routeWaypoints, routeMode]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !readyRef.current) return;
+    map.getCanvas().style.cursor = routeMode ? "crosshair" : "";
+  }, [routeMode]);
   useEffect(() => { if (readyRef.current) syncVisibility(); }, [layerState]);
   useEffect(() => { syncMarker(); }, [selectedPoint, layerState]);
   useViewportLayers(mapRef, layerState, ready);
