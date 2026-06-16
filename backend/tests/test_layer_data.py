@@ -42,3 +42,29 @@ def test_cache_prevents_refetch(monkeypatch):
 def test_unknown_layer():
     out = layer_data.layer_features("nope", BBOX)
     assert out["status"] == "error" and out["features"] == []
+
+
+import os, tempfile
+os.environ.setdefault("SUMMIT_SIGNAL_DB", os.path.join(tempfile.mkdtemp(), "ld.db"))
+from fastapi.testclient import TestClient  # noqa: E402
+from app.main import app  # noqa: E402
+
+_cm = TestClient(app); client = _cm.__enter__()
+def teardown_module(_m): _cm.__exit__(None, None, None)
+
+
+def test_layer_route_ok(monkeypatch):
+    layer_data.clear_cache()
+    monkeypatch.setenv("SUMMIT_SIGNAL_FIRMS_KEY", "k")
+    monkeypatch.setattr(layer_data.nasa_firms, "run", lambda ctx: ConnectorOutput(
+        connector_name="nasa_firms", status="success",
+        normalized={"detections": [{"latitude": 39.5, "longitude": -105.5, "confidence": "h"}]}))
+    r = client.get("/map/layer/fires", params={"west": -106, "south": 39, "east": -105, "north": 40})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ok" and body["features"][0]["geometry"]["type"] == "Point"
+
+
+def test_layer_route_bad_bbox():
+    r = client.get("/map/layer/fires", params={"west": -106, "south": 39, "east": -105, "north": 999})
+    assert r.status_code == 400

@@ -220,3 +220,9 @@ class PointContextResponse(BaseModel):
     lon: float
     place_name: Optional[str] = None
     sections: list[PointSectionOut] = Field(default_factory=list)
+
+
+class LayerDataResponse(BaseModel):
+    status: str
+    features: list[dict] = Field(default_factory=list)
+    message: Optional[str] = None

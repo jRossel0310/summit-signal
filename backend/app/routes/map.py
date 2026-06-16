@@ -15,3 +15,14 @@ def get_point_context(lat: float, lon: float, layers: str | None = None):
         raise HTTPException(400, "lat/lon out of range")
     layer_ids = [s for s in (layers or "").split(",") if s] or None
     return point_context(lat, lon, layer_ids)
+
+
+from ..schemas import LayerDataResponse
+from ..services.layer_data import layer_features
+
+
+@router.get("/map/layer/{layer_id}", response_model=LayerDataResponse)
+def get_layer(layer_id: str, west: float, south: float, east: float, north: float):
+    if not (-90 <= south <= 90 and -90 <= north <= 90 and -180 <= west <= 180 and -180 <= east <= 180):
+        raise HTTPException(400, "bbox out of range")
+    return layer_features(layer_id, {"west": west, "south": south, "east": east, "north": north})
