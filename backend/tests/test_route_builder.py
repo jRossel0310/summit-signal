@@ -113,3 +113,50 @@ def test_snap_success_with_mocked_ors(monkeypatch):
     assert body["points"][0][2] == round(1000.0 * 3.28084, 1)   # m -> ft
     assert abs(body["length_miles"] - 5.0) < 0.1                # 8046.72 m -> ~5 mi
     assert body["bbox"] == [-121.1, 46.0, -121.0, 46.1]
+
+
+# ---- saving a built route ----
+def test_save_built_route_creates_and_attaches():
+    trip_id = _create_trip(name="Save route trip")
+    r = client.post(f"/trips/{trip_id}/built-route", headers=AUTH, json={
+        "name": "My built route",
+        "points": [[46.0, -121.0, 1000], [46.1, -121.1, 1200]],
+        "bbox": [-121.1, 46.0, -121.0, 46.1],
+        "length_miles": 5.0, "source": "manual"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["gpx_route_id"] is not None
+    assert body["gpx_route"]["filename"] == "My built route"
+    assert len(body["gpx_route"]["points"]) == 2
+    assert body["gpx_route"]["length_miles"] == 5.0
+    assert body["gpx_route"]["bbox"] == {
+        "west": -121.1, "south": 46.0, "east": -121.0, "north": 46.1}
+    assert body["gpx_route"]["min_elevation_ft"] == 1000
+    assert body["gpx_route"]["max_elevation_ft"] == 1200
+
+
+def test_save_built_route_computes_length_and_bbox_when_missing():
+    trip_id = _create_trip(name="Auto stats trip")
+    r = client.post(f"/trips/{trip_id}/built-route", headers=AUTH, json={
+        "name": "Auto", "points": [[46.0, -121.0, None], [46.1, -121.1, None]],
+        "source": "manual"})
+    assert r.status_code == 200, r.text
+    gpx = r.json()["gpx_route"]
+    assert gpx["length_miles"] is not None and gpx["length_miles"] > 0
+    assert gpx["bbox"] == {"west": -121.1, "south": 46.0, "east": -121.0, "north": 46.1}
+
+
+def test_save_built_route_rejects_invalid_points():
+    trip_id = _create_trip(name="Invalid points trip")
+    r = client.post(f"/trips/{trip_id}/built-route", headers=AUTH, json={
+        "name": "Bad", "points": [[46.0, -121.0, None]], "source": "manual"})
+    assert r.status_code == 400
+
+
+def test_cannot_save_route_to_another_users_trip():
+    trip_id = _create_trip(name="Owner trip")
+    _, _, other = signup_and_token(client, "rb-intruder@example.com")
+    r = client.post(f"/trips/{trip_id}/built-route", headers=other, json={
+        "name": "Hijack", "points": [[46.0, -121.0, None], [46.1, -121.1, None]],
+        "source": "manual"})
+    assert r.status_code == 404

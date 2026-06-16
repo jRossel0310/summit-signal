@@ -18,6 +18,7 @@ from .routes import trips as trips_routes
 from .routes import checks as checks_routes
 from .routes import misc as misc_routes
 from .routes import map as map_routes
+from .routes import routes as route_builder_routes
 
 DEFAULT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
@@ -55,3 +56,4 @@ app.include_router(trips_routes.router)
 app.include_router(checks_routes.router)
 app.include_router(misc_routes.router)
 app.include_router(map_routes.router)
+app.include_router(route_builder_routes.router)
