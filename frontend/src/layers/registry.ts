@@ -57,6 +57,10 @@ export const LAYERS: LayerDescriptor[] = [
       { color: "#52ba4a", label: "Low" }, { color: "#fff300", label: "Mod" },
       { color: "#f7941e", label: "Consid." }, { color: "#ed1c24", label: "High" },
       { color: "#231f20", label: "Extreme" }] } },
+
+  // --- weather data-overlay (feeds the point panel only; no map render) ---
+  { id: "overlay.snow", group: "weather", kind: "data-overlay", label: "Snow depth (point panel)",
+    providerId: "snow", defaultVisible: false, defaultOpacity: 1, supportsOpacity: false },
 ];
 
 export const BASEMAP_LAYERS = LAYERS.filter((l) => l.group === "basemap");

@@ -9,9 +9,11 @@ from concurrent.futures import ThreadPoolExecutor
 from .base import ProviderContext, ProviderResult, error
 from .registry import select_providers
 
-CACHE_TTL_SECONDS = 1800.0    # elevation / place name are ~static
+CACHE_TTL_SECONDS = 1800.0    # ok/empty results: elevation / place name are ~static
+ERROR_TTL_SECONDS = 60.0      # error results self-heal quickly (don't stick for 30 min)
 CACHE_MAX = 512
-_cache: "OrderedDict[tuple, tuple[float, ProviderResult]]" = OrderedDict()
+# value = (stored_at_monotonic, result, ttl_seconds)
+_cache: "OrderedDict[tuple, tuple[float, ProviderResult, float]]" = OrderedDict()
 _lock = threading.Lock()
 
 _STATUS_WIRE = {
@@ -28,12 +30,22 @@ def _cache_key(provider_id, lat, lon):
     return (provider_id, round(lat, 4), round(lon, 4))
 
 
+def _now() -> float:
+    return time.monotonic()
+
+
+def _ttl_for(result: ProviderResult) -> float:
+    """Errors get a short TTL so a transient upstream failure self-heals;
+    everything else (ok / empty / needs_key / coming_soon) is held the full TTL."""
+    return ERROR_TTL_SECONDS if result.status == "error" else CACHE_TTL_SECONDS
+
+
 def _cached_fetch(provider, ctx) -> ProviderResult:
     key = _cache_key(provider.id, ctx.latitude, ctx.longitude)
-    now = time.monotonic()
+    now = _now()
     with _lock:
         hit = _cache.get(key)
-        if hit and (now - hit[0]) < CACHE_TTL_SECONDS:
+        if hit and (now - hit[0]) < hit[2]:
             _cache.move_to_end(key)
             return hit[1]
     try:
@@ -41,7 +53,7 @@ def _cached_fetch(provider, ctx) -> ProviderResult:
     except Exception as e:  # providers should never raise, but never trust it
         result = error(provider.id, getattr(provider, "title", provider.id), str(e))
     with _lock:
-        _cache[key] = (time.monotonic(), result)
+        _cache[key] = (_now(), result, _ttl_for(result))
         _cache.move_to_end(key)
         while len(_cache) > CACHE_MAX:
             _cache.popitem(last=False)

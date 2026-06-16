@@ -229,6 +229,31 @@ def test_snow_empty_when_no_snow(monkeypatch):
     assert out.data["snow_depth_in"] == 0
 
 
+def test_snow_is_opt_in():
+    assert snow_mod.SnowProvider().always_on is False   # layer-gated, not always fetched
+
+
+def test_snow_rate_limited_is_clean(monkeypatch):
+    import httpx
+
+    class _Resp429:
+        status_code = 429
+        def raise_for_status(self):
+            req = httpx.Request("GET", snow_mod.URL)
+            raise httpx.HTTPStatusError("429", request=req, response=httpx.Response(429, request=req))
+        def json(self): return {}
+
+    class _C:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url, params=None): return _Resp429()
+    monkeypatch.setattr(snow_mod, "http_client", lambda: _C())
+    out = snow_mod.SnowProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status == "error"
+    assert "http" not in (out.message or "")            # no raw upstream URL on the card
+    assert "rate" in (out.message or "").lower()         # reads as rate-limited
+
+
 from app.providers import freeze_thaw as ft_mod
 
 

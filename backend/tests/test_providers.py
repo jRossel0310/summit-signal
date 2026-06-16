@@ -190,3 +190,25 @@ def test_aggregator_runs_providers_concurrently_in_order(monkeypatch):
     elapsed = _t.monotonic() - start
     assert [s["layer_id"] for s in out["sections"]] == ["a", "b", "c"]   # order preserved
     assert elapsed < 0.5   # 3x0.2s concurrent, not 0.6s sequential
+
+
+def test_error_results_use_short_ttl(monkeypatch):
+    aggregator.clear_cache()
+    clock = {"t": 1000.0}
+    calls = {"n": 0}
+    monkeypatch.setattr(aggregator, "_now", lambda: clock["t"])
+
+    class _Err:
+        id = "x"; title = "X"; requires_key = None; always_on = True
+        def fetch(self, ctx):
+            calls["n"] += 1
+            return base.error(self.id, self.title, "boom")
+
+    monkeypatch.setattr(aggregator, "select_providers", lambda ids: [_Err()])
+    aggregator.point_context(40.0, -105.0)         # fetch #1 (error -> short TTL)
+    clock["t"] += 30
+    aggregator.point_context(40.0, -105.0)         # within 60s error TTL -> served from cache
+    assert calls["n"] == 1
+    clock["t"] += 60                                # now past the 60s error TTL
+    aggregator.point_context(40.0, -105.0)         # refetched
+    assert calls["n"] == 2
