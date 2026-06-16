@@ -152,3 +152,36 @@ export const TRIP_TYPE_LABELS: Record<TripType, string> = {
   backpacking: "Backpacking",
   mountaineering: "Mountaineering / glacier",
 };
+
+export interface RouteWaypoint {
+  lat: number;
+  lon: number;
+}
+
+export interface RouteSnapRequest {
+  waypoints: RouteWaypoint[];
+  profile: "hiking" | "walking";
+  options?: { preferTrails?: boolean; avoidRoads?: boolean };
+}
+
+export interface RouteSnapResponse {
+  status: "success" | "failed" | "unavailable";
+  message: string | null;
+  provider: string;
+  profile: string;
+  points: [number, number, number | null][]; // [lat, lon, ele_ft|null]
+  geojson: GeoJSON.FeatureCollection | GeoJSON.Feature | null;
+  length_miles: number | null;
+  bbox: number[] | null; // [minLon, minLat, maxLon, maxLat]
+  metadata: Record<string, unknown>;
+}
+
+export interface BuiltRouteSaveRequest {
+  name: string;
+  points: [number, number, number | null][];
+  bbox: number[] | null;
+  length_miles: number | null;
+  source: "manual" | "openrouteservice";
+  profile?: string | null;
+  metadata?: Record<string, unknown>;
+}
