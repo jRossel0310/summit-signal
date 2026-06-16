@@ -9,7 +9,7 @@ import { activeBasemapId } from "../layers/layerState";
 import { getDemSource } from "../layers/dem";
 import { registerTerrainProtocols } from "../layers/terrainProtocol";
 import { setupContours, contourTilesUrl } from "../layers/contours";
-import { decodeTerrarium, decodeMapbox } from "../layers/terrainMath";
+import { elevationAtM } from "../layers/pointSample";
 
 export interface FireDetection {
   latitude: number;
@@ -38,52 +38,6 @@ const OVERLAY_RENDER: Record<string, { layerIds: string[]; opacity?: [string, st
 
 const DEM = getDemSource();
 let terrainProtocolsReady = false;
-
-const HOVER_TILE = 256;
-const HOVER_CACHE_MAX = 256;
-const demHoverTiles = new Map<string, Float32Array | "loading" | "error">();
-
-function loadHoverTile(z: number, x: number, y: number) {
-  const key = `${z}/${x}/${y}`;
-  if (demHoverTiles.has(key)) return;
-  demHoverTiles.set(key, "loading");
-  const url = DEM.tiles[0].replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y));
-  fetch(url)
-    .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("dem"))))
-    .then((b) => createImageBitmap(b))
-    .then((bmp) => {
-      const c = document.createElement("canvas");
-      c.width = HOVER_TILE; c.height = HOVER_TILE;
-      const cx = c.getContext("2d")!;
-      cx.drawImage(bmp, 0, 0, HOVER_TILE, HOVER_TILE);
-      const px = cx.getImageData(0, 0, HOVER_TILE, HOVER_TILE).data;
-      const decode = DEM.encoding === "terrarium" ? decodeTerrarium : decodeMapbox;
-      const arr = new Float32Array(HOVER_TILE * HOVER_TILE);
-      for (let i = 0; i < arr.length; i++) arr[i] = decode(px[i * 4], px[i * 4 + 1], px[i * 4 + 2]);
-      demHoverTiles.set(key, arr);
-      while (demHoverTiles.size > HOVER_CACHE_MAX) {
-        const oldest = demHoverTiles.keys().next().value;
-        if (oldest === undefined) break;
-        demHoverTiles.delete(oldest);
-      }
-    })
-    .catch(() => demHoverTiles.set(key, "error"));
-}
-
-function hoverElevationM(lng: number, lat: number): number | null {
-  const z = Math.min(DEM.maxzoom, 12);
-  const n = 2 ** z;
-  const xf = ((lng + 180) / 360) * n;
-  const latRad = (lat * Math.PI) / 180;
-  const yf = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
-  const tx = Math.floor(xf), ty = Math.floor(yf);
-  const cell = demHoverTiles.get(`${z}/${tx}/${ty}`);
-  if (cell === undefined) { loadHoverTile(z, tx, ty); return null; }
-  if (cell === "loading" || cell === "error") return null;
-  const px = Math.min(HOVER_TILE - 1, Math.floor((xf - tx) * HOVER_TILE));
-  const py = Math.min(HOVER_TILE - 1, Math.floor((yf - ty) * HOVER_TILE));
-  return cell[py * HOVER_TILE + px];
-}
 
 interface Props {
   layerState: LayerStateMap;
@@ -159,7 +113,7 @@ export default function MapView({
         .some((id) => map.getLayer(OVERLAY_RENDER[id].layerIds[0]) &&
           map.getLayoutProperty(OVERLAY_RENDER[id].layerIds[0], "visibility") === "visible");
       if (!terrainOn) { el.style.display = "none"; return; }
-      const m = hoverElevationM(e.lngLat.lng, e.lngLat.lat);
+      const m = elevationAtM(e.lngLat.lng, e.lngLat.lat);
       if (m == null) { el.style.display = "none"; return; }
       el.style.display = "block";
       el.style.left = `${e.point.x + 12}px`;

@@ -1,5 +1,5 @@
-// Pure terrain math, mirrored by the backend slope_aspect.py (the FE drives the
-// map shading; the BE the dashboard value). Kept in sync by their unit tests.
+// Pure terrain math for map shading and point-dashboard slope/aspect.
+// Compass and slope-band helpers replace the deleted backend slope_aspect.py; unit-tested here.
 
 export function decodeTerrarium(r: number, g: number, b: number): number {
   return r * 256 + g + b / 256 - 32768;
@@ -31,4 +31,25 @@ export function metersPerPixel(latDeg: number, zoom: number): number {
 export function tileCenterLat(y: number, z: number): number {
   const n = Math.PI - (2 * Math.PI * (y + 0.5)) / 2 ** z;
   return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+}
+
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+/** 8-point compass for an aspect bearing (deg, 0=N clockwise). */
+export function aspectCompass(deg: number): string {
+  const d = ((deg % 360) + 360) % 360;
+  return COMPASS[Math.round(d / 45) % 8];
+}
+
+const SLOPE_BANDS: [number, number | null, string][] = [
+  [0, 15, "0–15°"], [15, 25, "15–25°"], [25, 30, "25–30°"],
+  [30, 35, "30–35°"], [35, 45, "35–45°"], [45, null, "45°+"],
+];
+
+/** Avalanche-standard slope band label for a slope angle (deg). */
+export function slopeBucketLabel(deg: number): string {
+  for (const [lo, hi, label] of SLOPE_BANDS) {
+    if (deg >= lo && (hi === null || deg < hi)) return label;
+  }
+  return SLOPE_BANDS[SLOPE_BANDS.length - 1][2];
 }

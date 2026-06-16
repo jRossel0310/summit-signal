@@ -105,12 +105,11 @@ from app.providers import registry
 def test_select_includes_always_on_by_default():
     ids = [p.id for p in registry.select_providers(None)]
     assert "elevation" in ids and "placename" in ids
-    assert "slope_aspect" in ids   # always-on via SlopeAspectProvider
 
 
 def test_select_includes_requested():
-    ids = [p.id for p in registry.select_providers(["slope_aspect"])]
-    assert "slope_aspect" in ids and "elevation" in ids
+    ids = [p.id for p in registry.select_providers(["aqi"])]
+    assert "aqi" in ids and "elevation" in ids
 
 
 def test_unknown_id_ignored():
