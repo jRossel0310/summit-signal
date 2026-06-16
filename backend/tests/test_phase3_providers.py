@@ -173,3 +173,30 @@ def test_snow_empty_when_no_snow(monkeypatch):
     out = snow_mod.SnowProvider().fetch(ProviderContext(40.0, -105.0))
     assert out.status in ("ok", "empty")  # zero snow is a valid "no snow" answer
     assert out.data["snow_depth_in"] == 0
+
+
+from app.providers import freeze_thaw as ft_mod
+
+
+def _hourly(temps):
+    return [{"time": f"2026-06-15T{h:02d}:00:00", "temperature_f": t} for h, t in enumerate(temps)]
+
+
+def test_freeze_thaw_counts_hours_below_freezing(monkeypatch):
+    # 24 temps: first 6 below freezing, rest above
+    temps = [25, 26, 28, 30, 31, 20] + [40] * 18
+    monkeypatch.setattr(ft_mod.nws_weather, "run", lambda ctx: ConnectorOutput(
+        connector_name="nws_weather", status="success",
+        normalized={"hourly_sample": _hourly(temps), "high_f": 55, "low_f": 20}))
+    out = ft_mod.FreezeThawProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status == "ok"
+    assert out.data["hours_below_freezing"] == 6
+    assert out.data["overnight_low_f"] is not None
+    assert out.data["refreeze"] in ("likely", "marginal", "no")
+
+
+def test_freeze_thaw_empty_without_forecast(monkeypatch):
+    monkeypatch.setattr(ft_mod.nws_weather, "run", lambda ctx: ConnectorOutput(
+        connector_name="nws_weather", status="failed", normalized={"hourly_sample": []}))
+    out = ft_mod.FreezeThawProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status == "empty"
