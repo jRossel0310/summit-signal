@@ -145,6 +145,60 @@ def test_current_weather_never_raises(monkeypatch):
     assert out.status in ("error", "empty")
 
 
+class _Resp404:
+    def raise_for_status(self): raise RuntimeError("404 Not Found")
+    def json(self): return {}
+
+
+class _CwFallbackClient:
+    """Nearest station 404s on its latest obs; the next station reports."""
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def get(self, url, params=None):
+        if "/points/" in url:
+            return _Resp({"properties": {"observationStations": "https://api.weather.gov/stations"}})
+        if url.endswith("/stations"):
+            return _Resp({"features": [
+                {"id": "https://api.weather.gov/stations/AT688", "properties": {"name": "Nonreporting"}},
+                {"id": "https://api.weather.gov/stations/KBDU", "properties": {"name": "Boulder"}},
+            ]})
+        if "AT688" in url:
+            return _Resp404()
+        return _Resp({"properties": {"temperature": {"value": 10.0}, "textDescription": "Clear"}})
+
+
+def test_current_weather_skips_nonreporting_station(monkeypatch):
+    monkeypatch.setattr(cw_mod, "http_client", lambda: _CwFallbackClient())
+    out = cw_mod.CurrentWeatherProvider().fetch(ProviderContext(40.0, -105.27))
+    assert out.status == "ok"
+    assert out.data["station"] == "Boulder"          # skipped AT688, used the next
+    assert out.data["temp_f"] == round(10.0 * 9 / 5 + 32)
+
+
+class _CwNoneReportClient:
+    """Every nearby station 404s on its latest obs."""
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def get(self, url, params=None):
+        if "/points/" in url:
+            return _Resp({"properties": {"observationStations": "https://api.weather.gov/stations"}})
+        if url.endswith("/stations"):
+            return _Resp({"features": [
+                {"id": "https://api.weather.gov/stations/AT688", "properties": {"name": "A"}},
+                {"id": "https://api.weather.gov/stations/AT689", "properties": {"name": "B"}},
+            ]})
+        return _Resp404()
+
+
+def test_current_weather_empty_when_no_station_reports(monkeypatch):
+    monkeypatch.setattr(cw_mod, "http_client", lambda: _CwNoneReportClient())
+    out = cw_mod.CurrentWeatherProvider().fetch(ProviderContext(40.0, -105.27))
+    assert out.status == "empty"
+    # clean message — no raw upstream URL leaked to the card
+    assert "http" not in (out.message or "")
+    assert "observations/latest" not in (out.message or "")
+
+
 from app.providers import snow as snow_mod
 
 
