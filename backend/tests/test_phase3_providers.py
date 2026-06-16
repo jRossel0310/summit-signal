@@ -77,3 +77,26 @@ def test_wildfire_needs_key(monkeypatch):
     monkeypatch.setenv("SUMMIT_SIGNAL_FIRMS_KEY", "")
     out = wildfire_mod.WildfireProvider().fetch(ProviderContext(40.0, -105.0))
     assert out.status == "needs_key"
+
+
+from app.providers import avalanche as avy_mod
+
+
+def test_avalanche_in_zone(monkeypatch):
+    monkeypatch.setattr(avy_mod.avalanche, "run", lambda ctx: ConnectorOutput(
+        connector_name="avalanche", status="success",
+        normalized={"in_forecast_zone": True, "zone": {
+            "zone_name": "Front Range", "center": "CAIC", "current_danger": "Considerable",
+            "forecast_link": "https://avalanche.state.co.us/"}}))
+    out = avy_mod.AvalancheProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status == "ok"
+    assert out.data["danger"] == "Considerable"
+    assert "CAIC" in out.data["center"]
+
+
+def test_avalanche_no_zone(monkeypatch):
+    monkeypatch.setattr(avy_mod.avalanche, "run", lambda ctx: ConnectorOutput(
+        connector_name="avalanche", status="success",
+        normalized={"in_forecast_zone": False, "zone": None}))
+    out = avy_mod.AvalancheProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status == "empty"
