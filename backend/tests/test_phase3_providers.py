@@ -100,3 +100,46 @@ def test_avalanche_no_zone(monkeypatch):
         normalized={"in_forecast_zone": False, "zone": None}))
     out = avy_mod.AvalancheProvider().fetch(ProviderContext(40.0, -105.0))
     assert out.status == "empty"
+
+
+from app.providers import current_weather as cw_mod
+
+
+class _Resp:
+    def __init__(self, payload): self._p = payload
+    def raise_for_status(self): return None
+    def json(self): return self._p
+
+
+class _CwClient:
+    """points -> observationStations -> stations list -> latest obs."""
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def get(self, url, params=None):
+        if "/points/" in url:
+            return _Resp({"properties": {"observationStations": "https://api.weather.gov/stations"}})
+        if url.endswith("/stations"):
+            return _Resp({"features": [{"id": "https://api.weather.gov/stations/KBDU",
+                                        "properties": {"name": "Boulder"}}]})
+        return _Resp({"properties": {
+            "temperature": {"value": 12.0}, "windSpeed": {"value": 18.0},
+            "windGust": {"value": 30.0}, "relativeHumidity": {"value": 40.0},
+            "textDescription": "Mostly Cloudy"}})
+
+
+def test_current_weather_ok(monkeypatch):
+    monkeypatch.setattr(cw_mod, "http_client", lambda: _CwClient())
+    out = cw_mod.CurrentWeatherProvider().fetch(ProviderContext(40.0, -105.27))
+    assert out.status == "ok"
+    assert out.data["temp_f"] == round(12.0 * 9 / 5 + 32)   # C -> F
+    assert out.data["conditions"] == "Mostly Cloudy"
+    assert out.data["station"] == "Boulder"
+
+
+def test_current_weather_never_raises(monkeypatch):
+    class _Boom:
+        def __enter__(self): raise RuntimeError("down")
+        def __exit__(self, *a): return False
+    monkeypatch.setattr(cw_mod, "http_client", lambda: _Boom())
+    out = cw_mod.CurrentWeatherProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status in ("error", "empty")
