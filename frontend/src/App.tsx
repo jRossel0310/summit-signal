@@ -6,11 +6,12 @@ import type {
 import MapView from "./components/MapView";
 import LayersControl from "./components/LayersControl";
 import PointDashboard from "./components/PointDashboard";
-import type { LayerStateMap, SelectionResult } from "./layers/types";
+import type { LayerStateMap, SelectionResult, PointSection } from "./layers/types";
 import {
   seedLayerState, setVisible as setLayerVisible, setOpacity as setLayerOpacity,
   selectBasemap, enabledDataProviderIds,
 } from "./layers/layerState";
+import { sampleSlopeAspect, type SlopeAspectSample } from "./layers/pointSample";
 import SearchBar from "./components/SearchBar";
 import ConditionDashboard from "./components/ConditionDashboard";
 import TripDetail from "./components/TripDetail";
@@ -100,6 +101,24 @@ function SheetPeek({
       )}
     </div>
   );
+}
+
+// Replace any backend slope_aspect section with the on-device DEM value, placed
+// right after the elevation section so the card order is unchanged.
+function withSlopeAspect(sections: PointSection[], sa: SlopeAspectSample | null): PointSection[] {
+  const rest = sections.filter((s) => s.layer_id !== "slope_aspect");
+  const section: PointSection = sa
+    ? {
+        layer_id: "slope_aspect", title: "Slope & aspect", status: "ok", data: sa as unknown as Record<string, unknown>, message: null,
+        source: { name: "On-device DEM (Mapzen/Terrarium · SRTM/USGS)", url: null, timestamp: new Date().toISOString() },
+      }
+    : {
+        layer_id: "slope_aspect", title: "Slope & aspect", status: "empty", data: null,
+        message: "No terrain data at this point", source: null,
+      };
+  const elevIdx = rest.findIndex((s) => s.layer_id === "elevation");
+  const at = elevIdx >= 0 ? elevIdx + 1 : 0;
+  return [...rest.slice(0, at), section, ...rest.slice(at)];
 }
 
 export default function App() {
@@ -291,9 +310,13 @@ export default function App() {
     setPointError(null);
     setPointResult(null);
     try {
-      const res = await api.pointContext(lat, lon, enabledDataProviderIds(layerState));
-      pointCacheRef.current.set(key, res);
-      setPointResult(res);
+      const [res, sa] = await Promise.all([
+        api.pointContext(lat, lon, enabledDataProviderIds(layerState)),
+        sampleSlopeAspect(lon, lat),
+      ]);
+      const merged: SelectionResult = { ...res, sections: withSlopeAspect(res.sections, sa) };
+      pointCacheRef.current.set(key, merged);
+      setPointResult(merged);
     } catch (e) {
       setPointError((e as Error).message);
     } finally {
