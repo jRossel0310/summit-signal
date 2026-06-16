@@ -47,3 +47,33 @@ def test_aqi_never_raises(monkeypatch):
     monkeypatch.setattr(aqi_mod.airnow, "run", lambda ctx: (_ for _ in ()).throw(RuntimeError("x")))
     out = aqi_mod.AqiProvider().fetch(ProviderContext(40.0, -105.0))
     assert out.status in ("error", "empty")
+
+
+from app.providers import wildfire as wildfire_mod
+
+
+def test_wildfire_ok(monkeypatch):
+    monkeypatch.setenv("SUMMIT_SIGNAL_FIRMS_KEY", "k")
+    monkeypatch.setattr(wildfire_mod.nasa_firms, "run", lambda ctx: ConnectorOutput(
+        connector_name="nasa_firms", status="success",
+        normalized={"count": 3, "nearest_miles": 4.2,
+                    "detections": [{"confidence": "high", "distance_miles": 4.2}]}))
+    out = wildfire_mod.WildfireProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status == "ok"
+    assert out.data["nearest_miles"] == 4.2
+    assert out.data["count"] == 3
+
+
+def test_wildfire_empty_when_none(monkeypatch):
+    monkeypatch.setenv("SUMMIT_SIGNAL_FIRMS_KEY", "k")
+    monkeypatch.setattr(wildfire_mod.nasa_firms, "run", lambda ctx: ConnectorOutput(
+        connector_name="nasa_firms", status="success",
+        normalized={"count": 0, "nearest_miles": None, "detections": []}))
+    out = wildfire_mod.WildfireProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status == "empty"
+
+
+def test_wildfire_needs_key(monkeypatch):
+    monkeypatch.setenv("SUMMIT_SIGNAL_FIRMS_KEY", "")
+    out = wildfire_mod.WildfireProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status == "needs_key"
