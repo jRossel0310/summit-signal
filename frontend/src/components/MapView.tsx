@@ -347,6 +347,8 @@ export default function MapView({
     for (const m of wpMarkersRef.current) m.remove();
     wpMarkersRef.current = [];
     if (!routeMode) return;
+    // Transparent 20px HTML markers sit on top of the numbered circle layer to
+    // provide a drag hit-target; they are torn down and rebuilt on every change.
     routeWaypoints.forEach((w, i) => {
       const el = document.createElement("div");
       el.style.width = "20px";

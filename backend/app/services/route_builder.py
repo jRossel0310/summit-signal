@@ -16,8 +16,8 @@ def validate_points(points: list) -> None:
         if not isinstance(p, (list, tuple)) or len(p) < 2:
             raise ValueError("Each point must be [lat, lon, ele?]")
         lat, lon = p[0], p[1]
-        if lat is None or lon is None:
-            raise ValueError("Point lat/lon must not be null")
+        if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+            raise ValueError("Point lat/lon must be numbers")
         if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
             raise ValueError(f"Point out of range: {lat}, {lon}")
 

@@ -31,6 +31,8 @@ def snap_route(waypoints: list, profile: str = DEFAULT_PROFILE,
                options: dict | None = None) -> dict:
     """waypoints: [(lat, lon), ...]. Returns the RouteSnapResponse dict shape.
     Never raises."""
+    # `options` (preferTrails/avoidRoads) is accepted for forward-compatibility
+    # with future providers; the ORS hiking profile already prefers trails.
     profile = profile if profile in PROFILE_MAP else DEFAULT_PROFILE
     if not waypoints or len(waypoints) < 2:
         return _envelope("failed", "none", profile,

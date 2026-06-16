@@ -160,3 +160,15 @@ def test_cannot_save_route_to_another_users_trip():
         "name": "Hijack", "points": [[46.0, -121.0, None], [46.1, -121.1, None]],
         "source": "manual"})
     assert r.status_code == 404
+
+
+def test_validate_points_rejects_non_numeric():
+    with pytest.raises(ValueError):
+        route_builder.validate_points([["x", -121.0], [46.0, -121.0]])
+
+
+def test_save_built_route_rejects_non_numeric_points():
+    trip_id = _create_trip(name="Non-numeric points trip")
+    r = client.post(f"/trips/{trip_id}/built-route", headers=AUTH, json={
+        "name": "Bad", "points": [["x", -121.0], [46.0, -121.0]], "source": "manual"})
+    assert r.status_code == 400
