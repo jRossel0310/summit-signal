@@ -111,6 +111,46 @@ class TripOut(BaseModel):
     latest_concern_status: Optional[str] = None
 
 
+# ---------- Route builder ----------
+
+class RouteWaypoint(BaseModel):
+    lat: float
+    lon: float
+
+
+class RouteSnapOptions(BaseModel):
+    preferTrails: bool = True
+    avoidRoads: bool = True
+
+
+class RouteSnapRequest(BaseModel):
+    waypoints: list[RouteWaypoint] = Field(default_factory=list)
+    profile: str = "hiking"  # hiking | walking
+    options: Optional[RouteSnapOptions] = None
+
+
+class RouteSnapResponse(BaseModel):
+    status: str  # success | failed | unavailable
+    message: Optional[str] = None
+    provider: str
+    profile: str
+    points: list = Field(default_factory=list)        # [[lat, lon, ele_or_null], ...]
+    geojson: Any = None                               # FeatureCollection or Feature
+    length_miles: Optional[float] = None
+    bbox: Optional[list] = None                       # [minLon, minLat, maxLon, maxLat]
+    metadata: dict = Field(default_factory=dict)
+
+
+class BuiltRouteSaveRequest(BaseModel):
+    name: str = "Built route"
+    points: list = Field(default_factory=list)        # [[lat, lon, ele_or_null], ...]
+    bbox: Optional[list] = None                       # [minLon, minLat, maxLon, maxLat]
+    length_miles: Optional[float] = None
+    source: str = "manual"                            # manual | openrouteservice
+    profile: Optional[str] = None
+    metadata: dict = Field(default_factory=dict)
+
+
 # ---------- Condition checks ----------
 
 class RiskFlagOut(BaseModel):
