@@ -143,3 +143,33 @@ def test_current_weather_never_raises(monkeypatch):
     monkeypatch.setattr(cw_mod, "http_client", lambda: _Boom())
     out = cw_mod.CurrentWeatherProvider().fetch(ProviderContext(40.0, -105.0))
     assert out.status in ("error", "empty")
+
+
+from app.providers import snow as snow_mod
+
+
+def test_snow_ok(monkeypatch):
+    class _C:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url, params=None):
+            return _Resp({"current": {"snow_depth": 0.42, "snowfall": 1.5},
+                          "daily": {"snowfall_sum": [3.0, 0.0, 0.0]}})
+    monkeypatch.setattr(snow_mod, "http_client", lambda: _C())
+    out = snow_mod.SnowProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status == "ok"
+    assert out.data["snow_depth_in"] == round(0.42 * 39.3701)   # m -> in
+    assert out.data["recent_snowfall_in"] is not None
+
+
+def test_snow_empty_when_no_snow(monkeypatch):
+    class _C:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url, params=None):
+            return _Resp({"current": {"snow_depth": 0.0, "snowfall": 0.0},
+                          "daily": {"snowfall_sum": [0.0]}})
+    monkeypatch.setattr(snow_mod, "http_client", lambda: _C())
+    out = snow_mod.SnowProvider().fetch(ProviderContext(40.0, -105.0))
+    assert out.status in ("ok", "empty")  # zero snow is a valid "no snow" answer
+    assert out.data["snow_depth_in"] == 0
