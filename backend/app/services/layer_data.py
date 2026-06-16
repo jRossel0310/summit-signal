@@ -1,6 +1,7 @@
 """Viewport (bbox) -> GeoJSON for hazard map layers. Wraps existing connectors;
 keys from env; cached by (layer, rounded bbox). Never raises."""
 from __future__ import annotations
+import datetime as dt
 import time
 from collections import OrderedDict
 from ..connectors import nasa_firms, nifc_wfigs, avalanche
@@ -67,8 +68,11 @@ def _aqi(bbox):
     if not key:
         return "needs_key", []
     from ..connectors.base import http_client
+    now = dt.datetime.now(dt.timezone.utc)
+    end = now.strftime("%Y-%m-%dT%H")
+    start = (now - dt.timedelta(hours=3)).strftime("%Y-%m-%dT%H")
     params = {
-        "startDate": "", "endDate": "",
+        "startDate": start, "endDate": end,
         "parameters": "PM25", "BBOX": f"{bbox['west']},{bbox['south']},{bbox['east']},{bbox['north']}",
         "dataType": "A", "format": "application/json", "verbose": 1, "API_KEY": key,
     }
