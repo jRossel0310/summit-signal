@@ -5,7 +5,6 @@ from __future__ import annotations
 from .base import Provider
 from .elevation import ElevationProvider
 from .placename import PlaceNameProvider
-from .slope_aspect import SlopeAspectProvider
 from .current_weather import CurrentWeatherProvider
 from .snow import SnowProvider
 from .freeze_thaw import FreezeThawProvider
@@ -16,7 +15,6 @@ from .avalanche import AvalancheProvider
 _ALL: list[Provider] = [
     PlaceNameProvider(),
     ElevationProvider(),
-    SlopeAspectProvider(),
     CurrentWeatherProvider(),
     SnowProvider(),
     FreezeThawProvider(),
