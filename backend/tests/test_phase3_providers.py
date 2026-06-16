@@ -193,6 +193,7 @@ def test_freeze_thaw_counts_hours_below_freezing(monkeypatch):
     assert out.data["hours_below_freezing"] == 6
     assert out.data["overnight_low_f"] is not None
     assert out.data["refreeze"] in ("likely", "marginal", "no")
+    assert out.data["morning_warming_f_per_hr"] > 0   # temps rise from 20 to 40
 
 
 def test_freeze_thaw_empty_without_forecast(monkeypatch):
