@@ -571,3 +571,13 @@ a { color: var(--teal); }
   border-radius: 3px; padding: 6px; font-size: 11px;
 }
 .rb-disclaimer { color: var(--ink-soft, #6b6456); font-size: 10.5px; line-height: 1.35; }
+
+.map-overlay-rb {
+  position: absolute;
+  top: 12px;
+  right: 64px; /* clear of the top-right navigation control */
+  z-index: 5;
+}
+@media (max-width: 700px) {
+  .map-overlay-rb { right: 12px; top: 56px; }
+}

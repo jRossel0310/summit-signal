@@ -19,6 +19,8 @@ import SettingsView from "./components/SettingsView";
 import AuthScreen from "./components/AuthScreen";
 import PlanPanel from "./components/PlanPanel";
 import BottomSheet, { type SheetSnap } from "./components/BottomSheet";
+import RouteBuilder from "./components/RouteBuilder";
+import { useRouteBuilder } from "./hooks/useRouteBuilder";
 import { useAuth } from "./lib/auth";
 import { useIsPhone } from "./lib/useIsPhone";
 
@@ -148,6 +150,7 @@ export default function App() {
   const pollRef = useRef<number | null>(null);
 
   const [layerState, setLayerState] = useState<LayerStateMap>(seedLayerState());
+  const rb = useRouteBuilder();
 
   // live point-context ("This point" dashboard)
   const [pointResult, setPointResult] = useState<SelectionResult | null>(null);
@@ -342,6 +345,11 @@ export default function App() {
     selectTrip(trip);
   }
 
+  function onRouteSaved(trip: Trip) {
+    setTrips((prev) => prev.map((t) => (t.id === trip.id ? trip : t)));
+    setSelectedTrip(trip);
+  }
+
   // ---- render ----
   if (!ready) return null;
   return (
@@ -445,6 +453,11 @@ export default function App() {
               gpxPoints={gpxPoints}
               onSelectPoint={onMapSelect}
               onSelectTrip={(id) => { const t = trips.find((x) => x.id === id); if (t) selectTrip(t); }}
+              routeMode={rb.mode}
+              routeWaypoints={rb.waypoints}
+              routeSnappedPoints={rb.snappedPoints}
+              onRouteAddWaypoint={rb.addWaypoint}
+              onRouteMoveWaypoint={rb.moveWaypoint}
             />
             <div className="map-overlay-tl">
               <SearchBar onResult={onSearchResult} />
@@ -457,6 +470,17 @@ export default function App() {
                 onOpacity={(id, o) => setLayerState((s) => setLayerOpacity(s, id, o))}
               />
             </div>
+            {user && (
+              <div className="map-overlay-rb">
+                <RouteBuilder
+                  rb={rb}
+                  loggedIn={!!user}
+                  selectedTripId={selectedTrip?.id ?? null}
+                  selectedTripName={selectedTrip?.name ?? null}
+                  onSaved={onRouteSaved}
+                />
+              </div>
+            )}
           </main>
 
           {!isPhone && (
