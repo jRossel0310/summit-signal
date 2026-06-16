@@ -1,9 +1,12 @@
 // Thin typed client for the FastAPI backend.
 import type {
   AppSettings,
+  BuiltRouteSaveRequest,
   CheckStatus,
   ConditionCheck,
   ConditionCheckDetail,
+  RouteSnapRequest,
+  RouteSnapResponse,
   SearchResult,
   SettingsUpdate,
   Trip,
@@ -110,6 +113,16 @@ export const api = {
     }
     return res.json();
   },
+
+  snapRoute: (req: RouteSnapRequest) =>
+    request<RouteSnapResponse>("/routes/snap", {
+      method: "POST", body: JSON.stringify(req),
+    }),
+
+  saveBuiltRoute: (tripId: number, req: BuiltRouteSaveRequest) =>
+    request<Trip>(`/trips/${tripId}/built-route`, {
+      method: "POST", body: JSON.stringify(req),
+    }),
 
   runConditionCheck: (tripId: number) =>
     request<ConditionCheck>(`/trips/${tripId}/run-condition-check`, { method: "POST" }),
