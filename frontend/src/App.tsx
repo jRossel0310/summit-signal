@@ -109,7 +109,7 @@ function withSlopeAspect(sections: PointSection[], sa: SlopeAspectSample | null)
   const rest = sections.filter((s) => s.layer_id !== "slope_aspect");
   const section: PointSection = sa
     ? {
-        layer_id: "slope_aspect", title: "Slope & aspect", status: "ok", data: sa as unknown as Record<string, unknown>, message: null,
+        layer_id: "slope_aspect", title: "Slope & aspect", status: "ok", data: sa, message: null,
         source: { name: "On-device DEM (Mapzen/Terrarium · SRTM/USGS)", url: null, timestamp: new Date().toISOString() },
       }
     : {

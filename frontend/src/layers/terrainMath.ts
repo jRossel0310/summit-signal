@@ -1,5 +1,5 @@
-// Pure terrain math, mirrored by the backend slope_aspect.py (the FE drives the
-// map shading; the BE the dashboard value). Kept in sync by their unit tests.
+// Pure terrain math for map shading and point-dashboard slope/aspect.
+// Compass and slope-band helpers replace the deleted backend slope_aspect.py; unit-tested here.
 
 export function decodeTerrarium(r: number, g: number, b: number): number {
   return r * 256 + g + b / 256 - 32768;

@@ -17,6 +17,7 @@ export interface SlopeAspectSample {
   aspect_deg: number;
   aspect_compass: string;
   slope_bucket: string;
+  [key: string]: unknown;
 }
 
 const tiles = new Map<string, Float32Array | "error">();
