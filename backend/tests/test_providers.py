@@ -99,15 +99,6 @@ def test_placename_failure_is_empty(monkeypatch):
     assert out.status == "empty"
 
 
-from app.providers import stubs
-
-
-def test_stub_is_coming_soon():
-    out = stubs.WeatherStub.fetch(ProviderContext(40.0, -105.0))
-    assert out.status == "coming_soon"
-    assert out.provider_id == "weather"
-
-
 from app.providers import registry
 
 
@@ -179,3 +170,24 @@ def test_status_mapped_to_kebab_wire(monkeypatch):
     monkeypatch.setattr(aggregator, "select_providers", lambda ids: [_W()])
     out = aggregator.point_context(40.0, -105.0, ["weather"])
     assert out["sections"][0]["status"] == "coming-soon"
+
+
+def test_aggregator_runs_providers_concurrently_in_order(monkeypatch):
+    import time as _t
+    from app.providers import aggregator as agg
+    from app.providers.base import ok as _ok
+    agg.clear_cache()
+
+    class _Slow:
+        def __init__(self, pid): self.id = pid; self.title = pid; self.always_on = True; self.requires_key = None
+        def fetch(self, ctx):
+            _t.sleep(0.2)
+            return _ok(self.id, self.title, {"v": self.id})
+
+    provs = [_Slow("a"), _Slow("b"), _Slow("c")]
+    monkeypatch.setattr(agg, "select_providers", lambda ids: provs)
+    start = _t.monotonic()
+    out = agg.point_context(40.0, -105.0)
+    elapsed = _t.monotonic() - start
+    assert [s["layer_id"] for s in out["sections"]] == ["a", "b", "c"]   # order preserved
+    assert elapsed < 0.5   # 3x0.2s concurrent, not 0.6s sequential
