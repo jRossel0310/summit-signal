@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { decodeTerrarium, decodeMapbox, pixelSlopeAspect, metersPerPixel } from "./terrainMath";
+import {
+  decodeTerrarium, decodeMapbox, pixelSlopeAspect, metersPerPixel,
+  aspectCompass, slopeBucketLabel,
+} from "./terrainMath";
 
 describe("DEM decode", () => {
   it("decodes terrarium sea level (32768,0,0 -> 0m)", () => {
@@ -29,5 +32,28 @@ describe("metersPerPixel", () => {
     const z12 = metersPerPixel(40, 12);
     expect(z5).toBeGreaterThan(z12);
     expect(z12).toBeGreaterThan(0);
+  });
+});
+
+describe("aspectCompass", () => {
+  it("maps cardinals, diagonals, and wraps", () => {
+    expect(aspectCompass(0)).toBe("N");
+    expect(aspectCompass(90)).toBe("E");
+    expect(aspectCompass(180)).toBe("S");
+    expect(aspectCompass(270)).toBe("W");
+    expect(aspectCompass(45)).toBe("NE");
+    expect(aspectCompass(360)).toBe("N");
+    expect(aspectCompass(338)).toBe("N");
+  });
+});
+
+describe("slopeBucketLabel", () => {
+  it("maps band boundaries (en-dash labels)", () => {
+    expect(slopeBucketLabel(14.9)).toBe("0–15°");
+    expect(slopeBucketLabel(15)).toBe("15–25°");
+    expect(slopeBucketLabel(32)).toBe("30–35°");
+    expect(slopeBucketLabel(40)).toBe("35–45°");
+    expect(slopeBucketLabel(45)).toBe("45°+");
+    expect(slopeBucketLabel(60)).toBe("45°+");
   });
 });
