@@ -65,6 +65,7 @@ Connectors that need keys are configured by the operator via server environment 
 export SUMMIT_SIGNAL_FIRMS_KEY=...    # https://firms.modaps.eosdis.nasa.gov/api/map_key/
 export SUMMIT_SIGNAL_AIRNOW_KEY=...   # https://docs.airnowapi.org/account/request/
 export SUMMIT_SIGNAL_NPS_KEY=...      # https://www.nps.gov/subjects/developer/get-started.htm
+export SUMMIT_SIGNAL_ORS_KEY=...    # https://openrouteservice.org/dev/#/signup
 ```
 
 Until a key is configured, the corresponding connector shows **"API key needed"** in check results. Nothing is hardcoded.
@@ -136,6 +137,7 @@ The repo includes `backend/render.yaml`. Create a new Web Service in Render poin
 | `SUMMIT_SIGNAL_FIRMS_KEY` | NASA FIRMS API key (free) |
 | `SUMMIT_SIGNAL_AIRNOW_KEY` | AirNow API key (free) |
 | `SUMMIT_SIGNAL_NPS_KEY` | NPS API key (free) |
+| `SUMMIT_SIGNAL_ORS_KEY` | OpenRouteService API key (free) — enables route snapping. Optional; without it route building still works as manual, unsnapped routes. |
 
 See `.env.example` at the repo root for the full list.
 
