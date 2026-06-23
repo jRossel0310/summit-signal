@@ -40,9 +40,14 @@ def test_snap_leg_returns_none_when_endpoint_too_far():
     assert traced is None
 
 
-def test_snap_leg_returns_none_when_no_path():
-    far_trail = [[[40.0, -100.0], [40.0, -100.01]]]   # nowhere near the points
-    traced = trail_snap.snap_leg((46.10, -121.10), (46.10, -121.05), far_trail)
+def test_snap_leg_returns_none_when_graph_disconnected():
+    # Two short trail segments ~3.8 km apart. p1 snaps to the first segment and
+    # p2 to the second (both well within 200 m), but the two segments are not
+    # connected, so no path exists -> exercises the Dijkstra no-path branch.
+    seg_near_p1 = [[46.10, -121.10], [46.10, -121.099]]
+    seg_near_p2 = [[46.10, -121.05], [46.10, -121.049]]
+    traced = trail_snap.snap_leg((46.10, -121.0995), (46.10, -121.0495),
+                                 [seg_near_p1, seg_near_p2])
     assert traced is None
 
 
