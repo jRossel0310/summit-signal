@@ -52,10 +52,10 @@ def create_trip(body: TripCreate, db: Session = Depends(get_db),
                 user: models.User = Depends(get_current_user)):
     trip = models.Trip(
         user_id=user.id,
-        name=body.name, location_name=body.location_name,
+        name=body.name, location_name=body.location_name or "",
         latitude=body.latitude, longitude=body.longitude,
         start_date=body.start_date, end_date=body.end_date,
-        trip_type=body.trip_type, notes=body.notes,
+        trip_type=body.trip_type, notes=body.notes or "",
         elevation_bands=body.elevation_bands.model_dump_json() if body.elevation_bands else None,
     )
     db.add(trip)
