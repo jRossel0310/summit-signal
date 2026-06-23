@@ -57,6 +57,16 @@ export default function RouteBuilder({
             <div><span className="rb-k">Waypoints</span><span className="rb-v">{rb.waypoints.length}</span></div>
             <div><span className="rb-k">Mode</span><span className="rb-v">{isSnapped ? "snapped" : "manual"}</span></div>
             <div><span className="rb-k">Provider</span><span className="rb-v">{provider}{isSnapped ? ` · ${profile}` : ""}</span></div>
+            {isSnapped && rb.snapped && (
+              <div><span className="rb-k">Sources</span><span className="rb-v">
+                {((rb.snapped.metadata as { providers_used?: string[] })?.providers_used || []).join(", ") || "-"}
+              </span></div>
+            )}
+            {isSnapped && rb.snapped && ((rb.snapped.metadata as { bridged_segments?: number })?.bridged_segments ?? 0) > 0 && (
+              <div><span className="rb-k">Gaps bridged</span><span className="rb-v">
+                {(rb.snapped.metadata as { bridged_segments?: number }).bridged_segments}
+              </span></div>
+            )}
           </div>
 
           {rb.snapped && rb.stale && (
