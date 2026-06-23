@@ -130,7 +130,7 @@ class RouteSnapRequest(BaseModel):
 
 
 class RouteSnapResponse(BaseModel):
-    status: str  # success | failed | unavailable
+    status: str  # success | partial | failed | unavailable
     message: Optional[str] = None
     provider: str
     profile: str

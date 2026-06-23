@@ -122,9 +122,13 @@ export function useRouteBuilder(): RouteBuilderState {
       return null;
     }
     const useSnapped = !!snappedPoints && !!snapped;
+    const bridged = (snapped?.metadata as { bridged_segments?: number } | undefined)?.bridged_segments ?? 0;
+    const snappedName = bridged > 0
+      ? `Snapped route (${bridged} gap${bridged > 1 ? "s" : ""} bridged)`
+      : "Snapped route";
     const req: BuiltRouteSaveRequest = useSnapped
       ? {
-          name: "Snapped route",
+          name: snappedName,
           points: snapped!.points,
           bbox: snapped!.bbox,
           length_miles: snapped!.length_miles,
