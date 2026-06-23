@@ -23,6 +23,8 @@ import RouteBuilder from "./components/RouteBuilder";
 import { useRouteBuilder } from "./hooks/useRouteBuilder";
 import { useAuth } from "./lib/auth";
 import { useIsPhone } from "./lib/useIsPhone";
+import { usePanelCollapse } from "./hooks/usePanelCollapse";
+import { dashboardClasses } from "./lib/panelLayout";
 
 type View = "dashboard" | "detail" | "settings" | "auth";
 
@@ -151,6 +153,7 @@ export default function App() {
 
   const [layerState, setLayerState] = useState<LayerStateMap>(seedLayerState());
   const rb = useRouteBuilder();
+  const panels = usePanelCollapse();
 
   // live point-context ("This point" dashboard)
   const [pointResult, setPointResult] = useState<SelectionResult | null>(null);
@@ -424,9 +427,14 @@ export default function App() {
       )}
 
       {view === "dashboard" && (
-        <div className="dashboard">
+        <div className={dashboardClasses(panels.leftCollapsed, panels.rightCollapsed)}>
           {!isPhone && (
             <aside className="panel-left contour-bg">
+              <button
+                className="panel-collapse-btn left"
+                aria-label="Collapse plan panel"
+                onClick={panels.toggleLeft}
+              />
               <PlanPanel
                 loggedIn={!!user}
                 selectedPoint={selectedPoint}
@@ -482,10 +490,33 @@ export default function App() {
                 />
               </div>
             )}
+            {!isPhone && panels.leftCollapsed && (
+              <button
+                className="panel-reopen-tab left"
+                aria-label="Open plan panel"
+                onClick={panels.toggleLeft}
+              >
+                Plan
+              </button>
+            )}
+            {!isPhone && panels.rightCollapsed && (
+              <button
+                className="panel-reopen-tab right"
+                aria-label="Open info panel"
+                onClick={panels.toggleRight}
+              >
+                Info
+              </button>
+            )}
           </main>
 
           {!isPhone && (
             <aside className="panel-right">
+              <button
+                className="panel-collapse-btn right"
+                aria-label="Collapse info panel"
+                onClick={panels.toggleRight}
+              />
               <div className="section">
                 <h2 className="section-title">This point</h2>
                 <PointDashboard
