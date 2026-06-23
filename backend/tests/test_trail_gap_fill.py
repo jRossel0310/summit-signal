@@ -108,3 +108,56 @@ def test_fetch_trail_lines_empty_on_exception(monkeypatch):
     monkeypatch.setattr(trail_source.httpx, "Client", Boom)
     assert trail_source.fetch_trail_lines((-121.2, 46.0, -121.0, 46.2),
                                           urls=["http://example/query"]) == []
+
+from app.services import routing_provider as rp  # noqa: E402
+
+
+def test_snap_route_partial_mixes_ors_trail_and_bridge(monkeypatch):
+    monkeypatch.setenv("SUMMIT_SIGNAL_ORS_KEY", "test-key")
+    # Force the whole-route fast path to fail so we go per-segment.
+    monkeypatch.setattr(rp, "_ors_whole", lambda wps, prof, key: None)
+    # 3 waypoints => 2 legs. Leg 0 snaps via ORS; leg 1 fails ORS.
+    def fake_ors_leg(p1, p2, prof, key):
+        if (p1, p2) == ((46.0, -121.0), (46.1, -121.1)):
+            return {"points": [[46.0, -121.0, 100.0], [46.1, -121.1, 200.0]],
+                    "length_miles": 1.0}
+        return None
+    monkeypatch.setattr(rp, "_ors_leg", fake_ors_leg)
+    # Leg 1: trail data provides a trace.
+    monkeypatch.setattr(rp.trail_source, "fetch_trail_lines",
+                        lambda bbox: [[[46.1, -121.1], [46.2, -121.2]]])
+    monkeypatch.setattr(rp.trail_snap, "snap_leg",
+                        lambda p1, p2, lines: [[46.1, -121.1, None],
+                                               [46.15, -121.15, None],
+                                               [46.2, -121.2, None]])
+    res = rp.snap_route([(46.0, -121.0), (46.1, -121.1), (46.2, -121.2)], "hiking")
+    assert res["status"] == "partial"
+    assert res["provider"] == "mixed"
+    assert [s["provider"] for s in res["segments"]] == ["openrouteservice", "trail_data"]
+    assert res["metadata"]["trail_segments"] == 1
+    assert res["metadata"]["bridged_segments"] == 0
+    # points are continuous (shared waypoint not duplicated)
+    assert res["points"][0] == [46.0, -121.0, 100.0]
+    assert res["points"][-1] == [46.2, -121.2, None]
+    modes = [f["properties"]["mode"] for f in res["geojson"]["features"]]
+    assert modes == ["snapped", "snapped"]
+
+
+def test_snap_route_bridges_when_no_source(monkeypatch):
+    monkeypatch.setenv("SUMMIT_SIGNAL_ORS_KEY", "test-key")
+    monkeypatch.setattr(rp, "_ors_whole", lambda wps, prof, key: None)
+    monkeypatch.setattr(rp, "_ors_leg", lambda p1, p2, prof, key: None)
+    monkeypatch.setattr(rp.trail_source, "fetch_trail_lines", lambda bbox: [])
+    res = rp.snap_route([(46.0, -121.0), (46.1, -121.1)], "hiking")
+    assert res["status"] == "partial"
+    assert res["segments"][0]["provider"] == "bridge"
+    assert res["metadata"]["bridged_segments"] == 1
+    assert res["geojson"]["features"][0]["properties"]["mode"] == "bridge"
+    assert res["points"] == [[46.0, -121.0, None], [46.1, -121.1, None]]
+
+
+def test_snap_route_rejects_too_many_waypoints(monkeypatch):
+    monkeypatch.setenv("SUMMIT_SIGNAL_ORS_KEY", "test-key")
+    wps = [(46.0 + i * 0.001, -121.0) for i in range(51)]
+    res = rp.snap_route(wps, "hiking")
+    assert res["status"] == "failed"

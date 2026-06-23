@@ -139,6 +139,7 @@ class RouteSnapResponse(BaseModel):
     length_miles: Optional[float] = None
     bbox: Optional[list] = None                       # [minLon, minLat, maxLon, maxLat]
     metadata: dict = Field(default_factory=dict)
+    segments: list = Field(default_factory=list)      # [{from,to,provider,snapped,length_miles}]
 
 
 class BuiltRouteSaveRequest(BaseModel):
