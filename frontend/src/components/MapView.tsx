@@ -52,6 +52,7 @@ interface Props {
   routeMode?: boolean;
   routeWaypoints?: { lat: number; lon: number }[];
   routeSnappedPoints?: [number, number, number | null][] | null;
+  routeSnappedGeojson?: GeoJSON.FeatureCollection | GeoJSON.Feature | null;
   onRouteAddWaypoint?: (lat: number, lon: number) => void;
   onRouteMoveWaypoint?: (index: number, lat: number, lon: number) => void;
 }
@@ -62,6 +63,7 @@ export default function MapView({
   layerState, trips, selectedTripId, selectedPoint, flyTo, gpxPoints,
   onSelectPoint, onSelectTrip,
   routeMode = false, routeWaypoints = [], routeSnappedPoints = null,
+  routeSnappedGeojson = null,
   onRouteAddWaypoint, onRouteMoveWaypoint,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -209,6 +211,12 @@ export default function MapView({
       layout: { "line-cap": "round", "line-join": "round" },
       paint: { "line-color": "#1d6fd8", "line-width": 4, "line-opacity": 0.95 },
     });
+    map.addLayer({
+      id: "route-builder-line-bridge", type: "line", source: "route-builder-line",
+      filter: ["==", ["get", "kind"], "bridge"],
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#d23b3b", "line-width": 3, "line-dasharray": [1.5, 1.5], "line-opacity": 0.95 },
+    });
     map.addSource("route-builder-waypoints", { type: "geojson", data: EMPTY_FC });
     map.addLayer({
       id: "route-builder-waypoints", type: "circle", source: "route-builder-waypoints",
@@ -323,7 +331,15 @@ export default function MapView({
         properties: { kind: "manual" },
       });
     }
-    if (routeSnappedPoints && routeSnappedPoints.length >= 2) {
+    const fc = routeSnappedGeojson && (routeSnappedGeojson as GeoJSON.FeatureCollection).type === "FeatureCollection"
+      ? (routeSnappedGeojson as GeoJSON.FeatureCollection)
+      : null;
+    if (fc) {
+      for (const f of fc.features) {
+        const mode = (f.properties as { mode?: string } | null)?.mode;
+        feats.push({ ...f, properties: { kind: mode === "bridge" ? "bridge" : "snapped" } });
+      }
+    } else if (routeSnappedPoints && routeSnappedPoints.length >= 2) {
       feats.push({
         type: "Feature",
         geometry: { type: "LineString", coordinates: routeSnappedPoints.map((p) => [p[1], p[0]]) },
@@ -400,7 +416,7 @@ export default function MapView({
   // ---- prop-driven syncs ----
   useEffect(() => { if (readyRef.current) syncTrips(); }, [trips, selectedTripId]);
   useEffect(() => { if (readyRef.current) syncGpx(); }, [gpxPoints]);
-  useEffect(() => { if (readyRef.current) syncRouteLine(); }, [routeWaypoints, routeSnappedPoints]);
+  useEffect(() => { if (readyRef.current) syncRouteLine(); }, [routeWaypoints, routeSnappedPoints, routeSnappedGeojson]);
   useEffect(() => { if (readyRef.current) syncWaypointMarkers(); }, [routeWaypoints, routeMode]);
   useEffect(() => {
     const map = mapRef.current;

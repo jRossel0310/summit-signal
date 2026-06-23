@@ -13,6 +13,7 @@ export interface RouteBuilderState {
   message: string | null;
   manualPoints: [number, number, number | null][];
   snappedPoints: [number, number, number | null][] | null;
+  snappedGeojson: GeoJSON.FeatureCollection | GeoJSON.Feature | null;
   toggleMode: () => void;
   addWaypoint: (lat: number, lon: number) => void;
   moveWaypoint: (index: number, lat: number, lon: number) => void;
@@ -35,7 +36,13 @@ export function useRouteBuilder(): RouteBuilderState {
     [waypoints],
   );
   const snappedPoints = useMemo(
-    () => (snapped && snapped.status === "success" && !stale ? snapped.points : null),
+    () => (snapped && (snapped.status === "success" || snapped.status === "partial") && !stale
+      ? snapped.points : null),
+    [snapped, stale],
+  );
+  const snappedGeojson = useMemo(
+    () => (snapped && (snapped.status === "success" || snapped.status === "partial") && !stale
+      ? snapped.geojson : null),
     [snapped, stale],
   );
 
@@ -88,6 +95,17 @@ export function useRouteBuilder(): RouteBuilderState {
           (res.message || "Trail snapping failed.") +
           " You can still save this as a manual route.",
         );
+      } else if (res.status === "partial") {
+        const md = (res.metadata || {}) as { trail_segments?: number; bridged_segments?: number };
+        const bits: string[] = [];
+        if (md.trail_segments) bits.push(`${md.trail_segments} via trail data`);
+        if (md.bridged_segments) {
+          bits.push(`${md.bridged_segments} straight bridge${md.bridged_segments > 1 ? "s" : ""} (no trail data)`);
+        }
+        setMessage(
+          `Partially snapped${bits.length ? ": " + bits.join(", ") : ""}. ` +
+          "Straight bridges are guesses — verify them before relying on this route.",
+        );
       } else {
         setMessage(null);
       }
@@ -104,9 +122,13 @@ export function useRouteBuilder(): RouteBuilderState {
       return null;
     }
     const useSnapped = !!snappedPoints && !!snapped;
+    const bridged = (snapped?.metadata as { bridged_segments?: number } | undefined)?.bridged_segments ?? 0;
+    const snappedName = bridged > 0
+      ? `Snapped route (${bridged} gap${bridged > 1 ? "s" : ""} bridged)`
+      : "Snapped route";
     const req: BuiltRouteSaveRequest = useSnapped
       ? {
-          name: "Snapped route",
+          name: snappedName,
           points: snapped!.points,
           bbox: snapped!.bbox,
           length_miles: snapped!.length_miles,
@@ -140,7 +162,7 @@ export function useRouteBuilder(): RouteBuilderState {
 
   return {
     mode, waypoints, snapped, stale, busy, message,
-    manualPoints, snappedPoints,
+    manualPoints, snappedPoints, snappedGeojson,
     toggleMode, addWaypoint, moveWaypoint, undoLast, clear, snap, save,
   };
 }

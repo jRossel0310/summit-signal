@@ -138,6 +138,7 @@ The repo includes `backend/render.yaml`. Create a new Web Service in Render poin
 | `SUMMIT_SIGNAL_AIRNOW_KEY` | AirNow API key (free) |
 | `SUMMIT_SIGNAL_NPS_KEY` | NPS API key (free) |
 | `SUMMIT_SIGNAL_ORS_KEY` | OpenRouteService API key (free) — enables route snapping. Optional; without it route building still works as manual, unsnapped routes. |
+| `SUMMIT_SIGNAL_TRAILS_URL` | Optional comma-separated ArcGIS REST trail query URLs (no key) to fill OSM gaps in route snapping. Defaults to a public trail service. |
 
 See `.env.example` at the repo root for the full list.
 

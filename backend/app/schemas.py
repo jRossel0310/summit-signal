@@ -130,7 +130,7 @@ class RouteSnapRequest(BaseModel):
 
 
 class RouteSnapResponse(BaseModel):
-    status: str  # success | failed | unavailable
+    status: str  # success | partial | failed | unavailable
     message: Optional[str] = None
     provider: str
     profile: str
@@ -139,6 +139,7 @@ class RouteSnapResponse(BaseModel):
     length_miles: Optional[float] = None
     bbox: Optional[list] = None                       # [minLon, minLat, maxLon, maxLat]
     metadata: dict = Field(default_factory=dict)
+    segments: list = Field(default_factory=list)      # [{from,to,provider,snapped,length_miles}]
 
 
 class BuiltRouteSaveRequest(BaseModel):

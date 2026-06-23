@@ -456,6 +456,7 @@ export default function App() {
               routeMode={rb.mode}
               routeWaypoints={rb.waypoints}
               routeSnappedPoints={rb.snappedPoints}
+              routeSnappedGeojson={rb.snappedGeojson}
               onRouteAddWaypoint={rb.addWaypoint}
               onRouteMoveWaypoint={rb.moveWaypoint}
             />
