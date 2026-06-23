@@ -3,6 +3,7 @@ import type { LayerStateMap } from "../layers/types";
 import { BASEMAP_LAYERS, OVERLAY_LAYERS, COMING_SOON_LAYERS } from "../layers/registry";
 import { activeBasemapId } from "../layers/layerState";
 import Legend from "./Legend";
+import InfoTip from "./InfoTip";
 
 interface Props {
   layerState: LayerStateMap;
@@ -48,14 +49,17 @@ export default function LayersControl({ layerState, onSelectBasemap, onToggle, o
               const st = layerState[l.id];
               return (
                 <div key={l.id} className="layers-row-block">
-                  <label className="layers-row">
-                    <input
-                      type="checkbox"
-                      checked={!!st?.visible}
-                      onChange={(e) => onToggle(l.id, e.target.checked)}
-                    />
-                    {l.label}
-                  </label>
+                  <div className="layers-row-head">
+                    <label className="layers-row">
+                      <input
+                        type="checkbox"
+                        checked={!!st?.visible}
+                        onChange={(e) => onToggle(l.id, e.target.checked)}
+                      />
+                      {l.label}
+                    </label>
+                    {l.description ? <InfoTip text={l.description} /> : null}
+                  </div>
                   {l.legend ? <Legend legend={l.legend} /> : null}
                   {l.supportsOpacity && st?.visible ? (
                     <div className="layers-opacity">
