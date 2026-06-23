@@ -48,6 +48,20 @@ def _create_trip(name="Contract trip"):
     return r.json()["id"]
 
 
+def test_create_trip_accepts_null_location_and_notes():
+    # The web client sends null for an unnamed map point and for empty notes.
+    # The backend must accept those and coerce them to "" rather than 422.
+    r = client.post("/trips", headers=AUTH, json={
+        "name": "Null fields trip", "latitude": 46.8, "longitude": -121.7,
+        "start_date": "2026-07-01", "end_date": "2026-07-03", "trip_type": "general",
+        "location_name": None, "notes": None})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # Frontend renders trip.location_name / trip.notes as strings.
+    assert body["location_name"] == ""
+    assert body["notes"] == ""
+
+
 def test_get_check_ai_summary_is_object():
     trip_id = _create_trip("Summary trip")
     db = SessionLocal()

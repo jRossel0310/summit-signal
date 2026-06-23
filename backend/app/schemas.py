@@ -60,13 +60,15 @@ class ElevationBands(BaseModel):
 
 class TripCreate(BaseModel):
     name: str
-    location_name: str = ""
+    # Optional: the web client sends null for an unnamed map point / empty notes.
+    # create_trip coerces null -> "" so the stored values stay plain strings.
+    location_name: Optional[str] = ""
     latitude: float
     longitude: float
     start_date: str
     end_date: str
     trip_type: str = "general"  # general | backpacking | mountaineering
-    notes: str = ""
+    notes: Optional[str] = ""
     elevation_bands: Optional[ElevationBands] = None
 
 
