@@ -595,12 +595,14 @@ a { color: var(--teal); }
   outline: none;
 }
 .info-tip:focus-visible { box-shadow: 0 0 0 2px var(--accent, #d84a1b); }
+/* Rendered only while shown (mounted by InfoTip), positioned via inline
+   top/left from the icon's viewport rect. `fixed` + translateX(-100%) makes it
+   open below-and-leftward from the icon and escape the panel's overflow clip. */
 .info-tip-bubble {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
+  position: fixed;
+  transform: translateX(-100%);
   width: 210px;
+  max-width: calc(100vw - 24px);
   padding: 7px 9px;
   background: var(--panel, #fbfaf6);
   color: var(--ink, #1f241f);
@@ -609,15 +611,6 @@ a { color: var(--teal); }
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
   font-size: 11.5px;
   line-height: 1.35;
-  z-index: 20;
-  visibility: hidden;
-  opacity: 0;
-  transition: opacity 0.08s ease;
+  z-index: 1000;
   pointer-events: none;
-}
-.info-tip:hover .info-tip-bubble,
-.info-tip:focus .info-tip-bubble,
-.info-tip:focus-within .info-tip-bubble {
-  visibility: visible;
-  opacity: 1;
 }
