@@ -90,6 +90,13 @@ export default function MapView({
       attributionControl: { compact: true },
     });
     mapRef.current = map;
+
+    let resizeObs: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && containerRef.current) {
+      resizeObs = new ResizeObserver(() => { mapRef.current?.resize(); });
+      resizeObs.observe(containerRef.current);
+    }
+
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
     map.addControl(new maplibregl.ScaleControl({ unit: "imperial" }), "bottom-left");
 
@@ -149,6 +156,7 @@ export default function MapView({
     });
 
     return () => {
+      resizeObs?.disconnect();
       for (const m of wpMarkersRef.current) m.remove();
       wpMarkersRef.current = [];
       map.remove();
