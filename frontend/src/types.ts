@@ -165,7 +165,7 @@ export interface RouteSnapRequest {
 }
 
 export interface RouteSnapResponse {
-  status: "success" | "failed" | "unavailable";
+  status: "success" | "partial" | "failed" | "unavailable";
   message: string | null;
   provider: string;
   profile: string;
@@ -174,6 +174,7 @@ export interface RouteSnapResponse {
   length_miles: number | null;
   bbox: number[] | null; // [minLon, minLat, maxLon, maxLat]
   metadata: Record<string, unknown>;
+  segments?: { from: number; to: number; provider: string; snapped: boolean; length_miles: number | null }[];
 }
 
 export interface BuiltRouteSaveRequest {
