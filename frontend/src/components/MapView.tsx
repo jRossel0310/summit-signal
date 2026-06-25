@@ -37,6 +37,8 @@ const OVERLAY_RENDER: Record<string, { layerIds: string[]; opacity?: [string, st
 };
 
 const DEM = getDemSource();
+const TERRAIN_EXAGGERATION = 1.4;
+const TERRAIN_PITCH = 60;
 let terrainProtocolsReady = false;
 
 interface Props {
@@ -305,7 +307,7 @@ export default function MapView({
   }
 
   function syncAll() {
-    syncTrips(); syncGpx(); syncRouteLine(); syncWaypointMarkers(); syncVisibility(); syncMarker();
+    syncTrips(); syncGpx(); syncRouteLine(); syncWaypointMarkers(); syncVisibility(); syncMarker(); sync3DTerrain();
   }
 
   function syncTrips() {
@@ -404,6 +406,40 @@ export default function MapView({
     }
   }
 
+  function applySky(map: maplibregl.Map, on: boolean) {
+    const m = map as unknown as { setSky?: (s?: unknown) => void };
+    if (typeof m.setSky !== "function") return;   // older MapLibre: skip sky, terrain still works
+    m.setSky(
+      on
+        ? {
+            "sky-color": "#9ec4e8",
+            "sky-horizon-blend": 0.5,
+            "horizon-color": "#dfeaf4",
+            "horizon-fog-blend": 0.5,
+            "fog-color": "#f4f2ec",
+            "fog-ground-blend": 0.5,
+          }
+        : undefined,
+    );
+  }
+
+  function sync3DTerrain() {
+    const map = mapRef.current;
+    if (!map) return;
+    const on = !!layerState["overlay.terrain3d"]?.visible;
+    if (on) {
+      if (map.getSource("dem")) {
+        map.setTerrain({ source: "dem", exaggeration: TERRAIN_EXAGGERATION });
+      }
+      applySky(map, true);
+      if (map.getPitch() < 1) map.easeTo({ pitch: TERRAIN_PITCH, duration: 600 });
+    } else {
+      map.setTerrain(null);
+      applySky(map, false);
+      if (map.getPitch() > 1) map.easeTo({ pitch: 0, duration: 600 });
+    }
+  }
+
   function syncMarker() {
     const map = mapRef.current;
     if (!map) return;
@@ -431,7 +467,7 @@ export default function MapView({
     if (!map || !readyRef.current) return;
     map.getCanvas().style.cursor = routeMode ? "crosshair" : "";
   }, [routeMode]);
-  useEffect(() => { if (readyRef.current) syncVisibility(); }, [layerState]);
+  useEffect(() => { if (readyRef.current) { syncVisibility(); sync3DTerrain(); } }, [layerState]);
   useEffect(() => { syncMarker(); }, [selectedPoint, layerState]);
   useViewportLayers(mapRef, layerState, ready);
 

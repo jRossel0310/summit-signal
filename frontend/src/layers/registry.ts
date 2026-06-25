@@ -36,6 +36,9 @@ export const LAYERS: LayerDescriptor[] = [
     defaultVisible: true, defaultOpacity: 1, supportsOpacity: false },
 
   // --- terrain (Phase 2; draw order bottom->top: hillshade, slope, aspect, contours) ---
+  { id: "overlay.terrain3d", group: "terrain", kind: "terrain-3d", label: "3D terrain",
+    description: "Tilts the camera and drapes the map over real elevation (DEM) so terrain rises in relief. Heavier on the GPU.",
+    defaultVisible: false, defaultOpacity: 1, supportsOpacity: false, legend: { kind: "none" } },
   { id: "overlay.hillshade", group: "terrain", kind: "raster-overlay", label: "Hillshade",
     description: "Shaded relief that makes ridges, valleys, and terrain shape easy to read.",
     defaultVisible: false, defaultOpacity: 0.45, supportsOpacity: true,
