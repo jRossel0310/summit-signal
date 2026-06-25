@@ -6,7 +6,8 @@ export type LayerKind =
   | "raster-overlay"  // tiled raster over the basemap (Phase 2: slope/hillshade)
   | "vector-overlay"  // geojson lines/fills (perimeters, future trails)
   | "marker"          // geojson points w/ symbols (saved trips, fires, point)
-  | "data-overlay";   // backed by a backend provider; also feeds the dashboard
+  | "data-overlay"    // backed by a backend provider; also feeds the dashboard
+  | "terrain-3d";     // camera/terrain mode (MapView handles it specially)
 
 export type LayerGroup =
   | "basemap" | "terrain" | "weather" | "hazard" | "reference" | "trip";
